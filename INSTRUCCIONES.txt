@@ -1,0 +1,61 @@
+================================================================================
+  PEF AI ASSISTANT - INSTRUCCIONES DE USO
+================================================================================
+
+EJECUCIÓN RÁPIDA:
+-----------------
+1. Haz doble clic en: ejecutar_app.bat
+2. Espera a que se abra el navegador
+3. ¡Listo! La aplicación está corriendo en http://localhost:8501
+
+DETENER LA APLICACIÓN:
+----------------------
+- En la ventana negra que se abrió, presiona: Ctrl + C
+- O simplemente cierra la ventana
+
+REQUISITOS:
+-----------
+- Python 3.10 o superior instalado
+- Conexión a Internet (primera vez para instalar dependencias)
+
+PRIMERA VEZ:
+------------
+La primera vez que ejecutes ejecutar_app.bat, instalará automáticamente
+todas las dependencias necesarias. Esto puede tardar 1-2 minutos.
+
+PROBLEMAS COMUNES:
+------------------
+
+1. "Python no está instalado"
+   → Instala Python desde: https://www.python.org/downloads/
+   → Asegúrate de marcar "Add Python to PATH" durante la instalación
+
+2. "Error al instalar dependencias"
+   → Ejecuta manualmente: pip install -r requirements.txt
+   → O contacta con soporte
+
+3. La aplicación no se abre en el navegador
+   → Abre manualmente: http://localhost:8501
+
+4. "Puerto 8501 en uso"
+   → Cierra otras instancias de Streamlit
+   → O reinicia el ordenador
+
+DESARROLLO:
+-----------
+Para trabajar en el código:
+1. Abre el proyecto en tu editor (VS Code, PyCharm, etc.)
+2. Edita los archivos en la carpeta src/
+3. Los cambios se verán automáticamente en el navegador (auto-reload)
+
+ARCHIVOS IMPORTANTES:
+---------------------
+- src/app.py              → Aplicación principal
+- src/config.py           → Configuración
+- .env                    → Variables de entorno (API keys)
+- requirements.txt        → Dependencias Python
+
+================================================================================
+TFG 2025-26 - Raul Velasco Tello
+Tutor: Jaume Teodoro i Sadurní
+================================================================================
