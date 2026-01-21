@@ -205,3 +205,32 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ========================================
+# Configuración específica del proyecto TFG
+# ========================================
+
+# API Keys adicionales
+*.key
+
+# Archivos generados del proyecto
+*.xlsx
+!templates/*.xlsx
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Archivos temporales del proyecto
+temp/
+output/
+cache/
+
+# Logs del proyecto
+logs/
+
+# macOS
+.DS_Store
+
+# Windows adicional
+Thumbs.db
+desktop.ini
