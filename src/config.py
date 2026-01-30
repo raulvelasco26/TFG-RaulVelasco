@@ -37,6 +37,9 @@ class Config:
     DEFAULT_IVA = 0.21
     DEFAULT_CORPORATE_TAX = 0.25
 
+    # Rutas de archivos Excel
+    TEMPLATE_FILE = TEMPLATES_DIR / "PEF_TOOLBOARD_v20.xlsx"
+
     @classmethod
     def validate(cls):
         """Valida que la configuración sea correcta"""
