@@ -9,8 +9,8 @@ Universitat Pompeu Fabra - TecnoCampus
 import streamlit as st
 from config import Config
 from components.financial_engine import (
-    FinancialEngine, Inversion, Prestamo, Empleado,
-    LineaVenta, GastoFijo, TaxConfig
+    FinancialEngine, Inversion, ProyectoTrabajoActivoPropio, Prestamo,
+    Empleado, LineaVenta, GastoFijo, TaxConfig
 )
 
 # =============================================================================
@@ -127,6 +127,20 @@ def init_session_state():
             "otros_materiales": {"importe": 0, "anos": 5, "subvencion": 0},
             # Fianzas
             "fianzas": {"importe": 0, "anos": 5, "subvencion": 0},
+        }
+
+    # === CAPEX - Proyectos de inversión en años posteriores ===
+    if "proyectos_inversion" not in st.session_state:
+        st.session_state.proyectos_inversion = {
+            "proyecto_inv_1": {"importe": 0, "anos": 1, "mes_adquisicion": 13, "subvencion": 0, "observaciones": ""},
+            "proyecto_inv_2": {"importe": 0, "anos": 1, "mes_adquisicion": 13, "subvencion": 0, "observaciones": ""},
+        }
+
+    # === CAPEX - Proyectos de trabajo para el propio activo ===
+    if "proyectos_trabajo" not in st.session_state:
+        st.session_state.proyectos_trabajo = {
+            "proyecto_trab_1": {"importe": 0, "anos": 1, "mes_inicio": 1, "mes_fin": 1, "subvencion": 0, "observaciones": ""},
+            "proyecto_trab_2": {"importe": 0, "anos": 1, "mes_inicio": 1, "mes_fin": 1, "subvencion": 0, "observaciones": ""},
         }
 
     # === FINANCIACIÓN ===
@@ -340,6 +354,8 @@ def render_sidebar():
 
             if st.session_state.capex:
                 total_capex = sum(v["importe"] for v in st.session_state.capex.values())
+                total_capex += sum(v["importe"] for v in st.session_state.proyectos_inversion.values())
+                total_capex += sum(v["importe"] for v in st.session_state.proyectos_trabajo.values())
                 st.metric("Total CAPEX", f"{total_capex:,.0f} €")
 
             if st.session_state.ingresos:
@@ -525,7 +541,34 @@ def prepare_financial_engine():
                 "subvencion": data.get("subvencion", 0)
             })
 
+    # Proyectos de inversión en años posteriores (son Inversiones estándar con mes_adquisicion > 1)
+    for key in st.session_state.proyectos_inversion:
+        pi = st.session_state.proyectos_inversion[key]
+        if pi.get("importe", 0) > 0:
+            inversiones.append({
+                "concepto": pi.get("observaciones", key) or key,
+                "importe": pi["importe"],
+                "vida_util_anos": pi.get("anos", 5),
+                "mes_adquisicion": pi.get("mes_adquisicion", 13),
+                "subvencion": pi.get("subvencion", 0)
+            })
+
     engine.set_inversiones(inversiones)
+
+    # Proyectos de trabajo para el propio activo
+    proyectos_trabajo = []
+    for key in st.session_state.proyectos_trabajo:
+        pt = st.session_state.proyectos_trabajo[key]
+        if pt.get("importe", 0) > 0:
+            proyectos_trabajo.append({
+                "concepto": pt.get("observaciones", key) or key,
+                "importe": pt["importe"],
+                "vida_util_anos": pt.get("anos", 5),
+                "mes_inicio_proyecto": pt.get("mes_inicio", 1),
+                "mes_fin_proyecto": pt.get("mes_fin", 12),
+                "subvencion": pt.get("subvencion", 0)
+            })
+    engine.set_proyectos_trabajo(proyectos_trabajo)
 
     # 2. Financiación
     financiacion_data = st.session_state.financiacion
@@ -1087,16 +1130,139 @@ Por ejemplo:
         with col2:
             st.selectbox("Recuperable en", ["Año 1", "Año 2", "Año 3", "Año 4", "Año 5"], index=4)
 
+        # === PROYECTOS DE INVERSIÓN EN AÑOS POSTERIORES ===
+        st.markdown("---")
+        st.markdown("#### 📅 Proyectos de Inversión en Años Posteriores")
+        st.caption("Inversiones adicionales adquiridas después del mes 1 (2 slots)")
+
+        for proy_key, proy_label in [("proyecto_inv_1", "Proyecto de Inversión 1"), ("proyecto_inv_2", "Proyecto de Inversión 2")]:
+            proy_data = st.session_state.proyectos_inversion[proy_key]
+            with st.expander(f"{proy_label} — {proy_data.get('observaciones', '') or 'Sin definir'}", expanded=False):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    pi_importe = st.number_input(
+                        "Importe (€)", value=proy_data["importe"],
+                        min_value=0, step=100, key=f"{proy_key}_importe",
+                        help="Importe sin IVA"
+                    )
+                    proy_data["importe"] = pi_importe
+                with col2:
+                    pi_anos = st.number_input(
+                        "Años amortización", value=proy_data["anos"],
+                        min_value=1, max_value=50, key=f"{proy_key}_anos"
+                    )
+                    proy_data["anos"] = pi_anos
+                with col3:
+                    pi_mes = st.number_input(
+                        "Mes adquisición (1-60)", value=proy_data["mes_adquisicion"],
+                        min_value=1, max_value=60, key=f"{proy_key}_mes"
+                    )
+                    proy_data["mes_adquisicion"] = pi_mes
+
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    pi_sub = st.number_input(
+                        "Subvención (€)", value=proy_data["subvencion"],
+                        min_value=0, step=100, key=f"{proy_key}_sub",
+                        help="Subvención de capital asociada"
+                    )
+                    proy_data["subvencion"] = pi_sub
+                with col2:
+                    pi_obs = st.text_input(
+                        "Observaciones", value=proy_data["observaciones"],
+                        key=f"{proy_key}_obs", placeholder="Describe la inversión..."
+                    )
+                    proy_data["observaciones"] = pi_obs
+                with col3:
+                    if pi_importe > 0:
+                        pi_iva = pi_importe * 0.21
+                        st.text(f"IVA (21%): {pi_iva:,.0f} €")
+                        st.text(f"Total: {pi_importe + pi_iva:,.0f} €")
+                        pi_mes_fin_amort = pi_mes + pi_anos * 12
+                        st.text(f"Fin amort: mes {pi_mes_fin_amort}")
+
+        # === PROYECTOS DE TRABAJO PARA EL PROPIO ACTIVO ===
+        st.markdown("---")
+        st.markdown("#### 🔬 Proyectos de Trabajo para el Propio Activo")
+        st.caption("I+D interno que se capitaliza como inmovilizado intangible (sin IVA, sin desembolso adicional)")
+
+        for proy_key, proy_label in [("proyecto_trab_1", "Proyecto de Trabajo 1"), ("proyecto_trab_2", "Proyecto de Trabajo 2")]:
+            proy_data = st.session_state.proyectos_trabajo[proy_key]
+            with st.expander(f"{proy_label} — {proy_data.get('observaciones', '') or 'Sin definir'}", expanded=False):
+                col1, col2 = st.columns(2)
+                with col1:
+                    pt_importe = st.number_input(
+                        "Importe total (€)", value=proy_data["importe"],
+                        min_value=0, step=100, key=f"{proy_key}_importe",
+                        help="Coste total del proyecto (se capitaliza al finalizar)"
+                    )
+                    proy_data["importe"] = pt_importe
+                with col2:
+                    pt_anos = st.number_input(
+                        "Años amortización", value=proy_data["anos"],
+                        min_value=1, max_value=50, key=f"{proy_key}_anos"
+                    )
+                    proy_data["anos"] = pt_anos
+
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    pt_inicio = st.number_input(
+                        "Mes inicio proyecto (1-60)", value=proy_data["mes_inicio"],
+                        min_value=1, max_value=60, key=f"{proy_key}_inicio"
+                    )
+                    proy_data["mes_inicio"] = pt_inicio
+                with col2:
+                    pt_fin = st.number_input(
+                        "Mes fin proyecto (1-60)", value=proy_data["mes_fin"],
+                        min_value=pt_inicio, max_value=60, key=f"{proy_key}_fin"
+                    )
+                    proy_data["mes_fin"] = pt_fin
+                with col3:
+                    pt_sub = st.number_input(
+                        "Subvención (€)", value=proy_data["subvencion"],
+                        min_value=0, step=100, key=f"{proy_key}_sub",
+                        help="Subvención de capital asociada"
+                    )
+                    proy_data["subvencion"] = pt_sub
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    pt_obs = st.text_input(
+                        "Observaciones", value=proy_data["observaciones"],
+                        key=f"{proy_key}_obs", placeholder="Describe el proyecto..."
+                    )
+                    proy_data["observaciones"] = pt_obs
+                with col2:
+                    if pt_importe > 0:
+                        duracion = pt_fin - pt_inicio + 1
+                        importe_medio = pt_importe / duracion if duracion > 0 else 0
+                        st.text(f"IVA: 0 € (no aplica)")
+                        st.text(f"Importe medio/mes: {importe_medio:,.0f} €")
+                        st.text(f"Inicio amort: mes {pt_fin + 1}")
+                        st.text(f"Fin amort: mes {pt_fin + 1 + pt_anos * 12}")
+
         # === RESUMEN - Cálculos automáticos ===
         st.markdown("---")
         st.markdown("### 📊 Resumen de Inversiones")
 
-        # Calcular totales
+        # Calcular totales inversiones iniciales
         total_intangible = sum(st.session_state.capex[k]["importe"] for k in ["investigacion", "patentes", "aplicaciones", "otros_intangibles"])
         total_material = sum(st.session_state.capex[k]["importe"] for k in ["terrenos", "instalaciones", "maquinaria", "equipos", "mobiliario", "vehiculos", "otros_materiales"])
         total_fianzas = st.session_state.capex["fianzas"]["importe"]
-        total_importe = total_intangible + total_material + total_fianzas
-        total_iva = (total_intangible + total_material) * 0.21  # Fianzas no llevan IVA
+
+        # Totales de proyectos de inversión posteriores
+        total_proy_inv = sum(
+            st.session_state.proyectos_inversion[k]["importe"]
+            for k in st.session_state.proyectos_inversion
+        )
+        # Totales de proyectos de trabajo propio activo
+        total_proy_trab = sum(
+            st.session_state.proyectos_trabajo[k]["importe"]
+            for k in st.session_state.proyectos_trabajo
+        )
+
+        total_importe = total_intangible + total_material + total_fianzas + total_proy_inv
+        total_iva = (total_intangible + total_material + total_proy_inv) * 0.21  # Fianzas y proy. trabajo no llevan IVA
         total_con_iva = total_importe + total_iva
 
         col1, col2, col3, col4 = st.columns(4)
@@ -1109,12 +1275,34 @@ Por ejemplo:
         with col4:
             st.metric("TOTAL con IVA", f"{total_con_iva:,.0f} €", help="Desembolso real necesario")
 
+        if total_proy_inv > 0 or total_proy_trab > 0:
+            col1, col2 = st.columns(2)
+            with col1:
+                if total_proy_inv > 0:
+                    st.metric("Proy. Inversión Posteriores", f"{total_proy_inv:,.0f} €",
+                              help="Inversiones adquiridas después del mes 1 (incluidas en total)")
+            with col2:
+                if total_proy_trab > 0:
+                    st.metric("Proy. Trabajo Propio Activo", f"{total_proy_trab:,.0f} €",
+                              help="Se capitaliza al finalizar (no genera desembolso adicional)")
+
         # Mostrar también amortización anual total
         amort_anual = sum(
             st.session_state.capex[k]["importe"] / st.session_state.capex[k]["anos"]
             for k in st.session_state.capex.keys()
             if st.session_state.capex[k]["importe"] > 0 and st.session_state.capex[k]["anos"] > 0
         )
+        # Añadir amortización de proyectos de inversión posteriores
+        for k in st.session_state.proyectos_inversion:
+            pi = st.session_state.proyectos_inversion[k]
+            if pi["importe"] > 0 and pi["anos"] > 0:
+                amort_anual += pi["importe"] / pi["anos"]
+        # Añadir amortización de proyectos de trabajo
+        for k in st.session_state.proyectos_trabajo:
+            pt = st.session_state.proyectos_trabajo[k]
+            if pt["importe"] > 0 and pt["anos"] > 0:
+                amort_anual += pt["importe"] / pt["anos"]
+
         st.info(f"📈 **Amortización anual total**: {amort_anual:,.0f} € (gasto no monetario que reduce el beneficio)")
 
     # Navegación
@@ -1395,10 +1583,14 @@ def render_stage_financiacion():
 
         # Validación contra CAPEX
         st.markdown("---")
-        # Calcular necesidades desde CAPEX
+        # Calcular necesidades desde CAPEX (inversiones iniciales + proyectos inversión, NO proyectos trabajo)
         total_capex = sum(
             st.session_state.capex[k]["importe"]
             for k in st.session_state.capex.keys()
+        )
+        total_capex += sum(
+            st.session_state.proyectos_inversion[k]["importe"]
+            for k in st.session_state.proyectos_inversion
         )
         total_capex_iva = total_capex * 1.21  # Con IVA
 
@@ -2318,39 +2510,65 @@ def render_stage_analisis():
 
         if hay_datos:
             # Crear DataFrame con datos reales
-            pyl_data = {
-                "Concepto": [
-                    "INGRESOS (Ventas)",
-                    "(-) Costes variables",
-                    "MARGEN COMERCIAL",
-                    "(-) Gastos fijos servicios",
-                    "(-) Gastos de nómina",
-                    "EBITDA",
-                    "(-) Amortizaciones",
-                    "EBIT",
-                    "(-) Gastos financieros",
-                    "EBT (Antes impuestos)",
-                    "(-) Impuesto Sociedades",
-                    "RESULTADO NETO"
-                ]
-            }
+            pyl_conceptos = [
+                "INGRESOS (Ventas)",
+            ]
+            # Incluir ingresos trabajo propio activo solo si hay valores
+            hay_trab_activo = any(suma_ano(cuenta_resultados, 'ingresos_trabajo_propio_activo', a) != 0 for a in range(1, 6))
+            if hay_trab_activo:
+                pyl_conceptos.append("Ingresos trabajo propio activo")
+
+            pyl_conceptos += [
+                "(-) Costes variables",
+                "MARGEN COMERCIAL",
+                "(-) Gastos fijos servicios",
+                "(-) Gastos de nómina",
+                "EBITDA",
+                "(-) Amortizaciones",
+            ]
+            # Incluir imputación subvenciones solo si hay valores
+            hay_imputacion_sub = any(suma_ano(cuenta_resultados, 'imputacion_subvenciones', a) != 0 for a in range(1, 6))
+            if hay_imputacion_sub:
+                pyl_conceptos.append("Imputación subvenciones capital")
+
+            pyl_conceptos += [
+                "EBIT",
+                "(-) Gastos financieros",
+                "EBT (Antes impuestos)",
+                "(-) Impuesto Sociedades",
+                "RESULTADO NETO",
+                "(Resultado acumulado)"
+            ]
+
+            pyl_data = {"Concepto": pyl_conceptos}
 
             for ano in range(1, 6):
                 col_name = f"Año {ano}"
-                pyl_data[col_name] = [
+                col_values = [
                     fmt(suma_ano(cuenta_resultados, 'ingresos', ano)),
+                ]
+                if hay_trab_activo:
+                    col_values.append(fmt(suma_ano(cuenta_resultados, 'ingresos_trabajo_propio_activo', ano)))
+                col_values += [
                     fmt(suma_ano(cuenta_resultados, 'costes_variables', ano)),
                     fmt(suma_ano(cuenta_resultados, 'margen_comercial', ano)),
                     fmt(suma_ano(cuenta_resultados, 'gastos_fijos_servicios', ano)),
                     fmt(suma_ano(cuenta_resultados, 'gastos_nomina', ano)),
                     fmt(suma_ano(cuenta_resultados, 'ebitda', ano)),
                     fmt(suma_ano(cuenta_resultados, 'amortizaciones', ano)),
+                ]
+                if hay_imputacion_sub:
+                    col_values.append(fmt(suma_ano(cuenta_resultados, 'imputacion_subvenciones', ano)))
+                mes_fin = ano * 12 - 1
+                col_values += [
                     fmt(suma_ano(cuenta_resultados, 'ebit', ano)),
                     fmt(suma_ano(cuenta_resultados, 'gastos_financieros', ano)),
                     fmt(suma_ano(cuenta_resultados, 'ebt', ano)),
                     fmt(suma_ano(cuenta_resultados, 'impuesto_sociedades', ano)),
-                    fmt(suma_ano(cuenta_resultados, 'resultado', ano))
+                    fmt(suma_ano(cuenta_resultados, 'resultado', ano)),
+                    fmt(cuenta_resultados['resultado_acumulado'][mes_fin])
                 ]
+                pyl_data[col_name] = col_values
 
             df_pyl = pd.DataFrame(pyl_data)
             st.dataframe(df_pyl, use_container_width=True, hide_index=True)

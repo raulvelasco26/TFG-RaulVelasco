@@ -43,6 +43,47 @@ class Inversion:
 
 
 @dataclass
+class ProyectoTrabajoActivoPropio:
+    """Representa un proyecto de trabajo para el propio activo (I+D interno capitalizable)"""
+    concepto: str
+    importe: float
+    vida_util_anos: int = 5
+    mes_inicio_proyecto: int = 1
+    mes_fin_proyecto: int = 12
+    subvencion: float = 0.0
+
+    @property
+    def duracion_meses(self) -> int:
+        return self.mes_fin_proyecto - self.mes_inicio_proyecto + 1
+
+    @property
+    def importe_medio_mensual(self) -> float:
+        if self.duracion_meses <= 0:
+            return 0
+        return self.importe / self.duracion_meses
+
+    @property
+    def mes_inicio_amortizacion(self) -> int:
+        return self.mes_fin_proyecto + 1
+
+    @property
+    def mes_fin_amortizacion(self) -> int:
+        return self.mes_inicio_amortizacion + self.vida_util_anos * 12
+
+    @property
+    def amortizacion_mensual(self) -> float:
+        if self.vida_util_anos <= 0:
+            return 0
+        return self.importe / (self.vida_util_anos * 12)
+
+    @property
+    def subvencion_amortizacion_mensual(self) -> float:
+        if self.vida_util_anos <= 0:
+            return 0
+        return self.subvencion / (self.vida_util_anos * 12)
+
+
+@dataclass
 class Prestamo:
     """Representa un préstamo"""
     nombre: str
@@ -253,6 +294,7 @@ class FinancialEngine:
 
         # Datos de entrada
         self.inversiones: List[Inversion] = []
+        self.proyectos_trabajo: List[ProyectoTrabajoActivoPropio] = []
         self.prestamos: List[Prestamo] = []
         self.capital_inicial: float = 0
         self.poliza_credito_interes: float = 0.03
@@ -303,6 +345,12 @@ class FinancialEngine:
         self.inversiones = []
         for inv in inversiones:
             self.add_inversion(**inv)
+
+    def set_proyectos_trabajo(self, proyectos: List[Dict[str, Any]]):
+        """Establece los proyectos de trabajo para el propio activo desde lista de dicts"""
+        self.proyectos_trabajo = []
+        for p in proyectos:
+            self.proyectos_trabajo.append(ProyectoTrabajoActivoPropio(**p))
 
     def set_financiacion(self, financiacion: Dict[str, Any]):
         """Establece las fuentes de financiación"""
@@ -449,29 +497,61 @@ class FinancialEngine:
             'amortizacion_total': [0.0] * self.months,
             'inmovilizado_neto': [0.0] * self.months,
             'iva_soportado_inversiones': [0.0] * self.months,
+            'ingresos_trabajo_propio_activo': [0.0] * self.months,
+            'imputacion_subvenciones': [0.0] * self.months,
         }
 
         # Calcular amortización acumulada e inmovilizado
         amortizacion_acumulada = 0.0
-        total_inversiones = sum(inv.importe for inv in self.inversiones)
 
         for mes in range(1, self.months + 1):
             idx = mes - 1
             amort_mes = 0.0
             iva_mes = 0.0
+            imputacion_sub_mes = 0.0
 
+            # Inversiones normales (amortización empieza el mes siguiente a la adquisición)
             for inv in self.inversiones:
-                # Si está dentro del período de amortización
-                if inv.mes_adquisicion <= mes < inv.mes_fin_amortizacion:
+                if inv.mes_adquisicion < mes <= inv.mes_fin_amortizacion:
                     amort_mes += inv.amortizacion_mensual
+                    # Imputación de subvención de esta inversión
+                    if inv.subvencion > 0 and inv.vida_util_anos > 0:
+                        imputacion_sub_mes += inv.subvencion / (inv.vida_util_anos * 12)
 
-                # IVA soportado en el mes de adquisición
                 if inv.mes_adquisicion == mes:
                     iva_mes += inv.iva
 
+            # Proyectos de trabajo para el propio activo
+            for proy in self.proyectos_trabajo:
+                # Amortización: el activo se activa en mes_fin+1, primera cuota en mes_fin+2
+                if proy.mes_inicio_amortizacion < mes <= proy.mes_fin_amortizacion:
+                    amort_mes += proy.amortizacion_mensual
+                    imputacion_sub_mes += proy.subvencion_amortizacion_mensual
+
+                # Ingreso por trabajo propio activo durante el periodo de trabajo
+                if proy.mes_inicio_proyecto <= mes <= proy.mes_fin_proyecto:
+                    data['ingresos_trabajo_propio_activo'][idx] += proy.importe_medio_mensual
+
             amortizacion_acumulada += amort_mes
             data['amortizacion_total'][idx] = amort_mes
-            data['inmovilizado_neto'][idx] = total_inversiones - amortizacion_acumulada
+            data['imputacion_subvenciones'][idx] = imputacion_sub_mes
+
+            # Inmovilizado neto dinámico: inversiones activas + proyectos trabajo
+            total_activos_mes = 0.0
+            for inv in self.inversiones:
+                if inv.mes_adquisicion <= mes:
+                    total_activos_mes += inv.importe
+            for proy in self.proyectos_trabajo:
+                if proy.mes_inicio_proyecto <= mes:
+                    if mes <= proy.mes_fin_proyecto:
+                        # En curso: importe proporcional acumulado
+                        meses_transcurridos = mes - proy.mes_inicio_proyecto + 1
+                        total_activos_mes += proy.importe_medio_mensual * meses_transcurridos
+                    else:
+                        # Activado: importe total
+                        total_activos_mes += proy.importe
+
+            data['inmovilizado_neto'][idx] = total_activos_mes - amortizacion_acumulada
             data['iva_soportado_inversiones'][idx] = iva_mes
 
         return pd.DataFrame(data)
@@ -488,13 +568,15 @@ class FinancialEngine:
             'deuda_corto_plazo': [0.0] * self.months,
         }
 
-        # Saldo inicial (mes 0): capital inicial - inversiones del mes 1
+        # Saldo inicial (mes 0): capital inicial + subvenciones mes 1 - inversiones del mes 1
         # Las inversiones del mes 1 se pagan en el mes 0 (como en el Excel)
         # Los préstamos entran en su mes de inicio
         self.saldo_inicial_tesoreria = self.capital_inicial
         for inv in self.inversiones:
             if inv.mes_adquisicion == 1:
                 self.saldo_inicial_tesoreria -= inv.total_con_iva
+                if inv.subvencion > 0:
+                    self.saldo_inicial_tesoreria += inv.subvencion
 
         # Préstamos - entran como flujo en su mes de inicio
         for prestamo in self.prestamos:
@@ -540,12 +622,14 @@ class FinancialEngine:
         data = {
             'mes': list(range(1, self.months + 1)),
             'ingresos': self.df_ventas['ventas_totales'].values.copy(),
+            'ingresos_trabajo_propio_activo': self.df_amortizaciones['ingresos_trabajo_propio_activo'].values.copy(),
             'costes_variables': self.df_ventas['costes_variables'].values.copy(),
             'margen_comercial': [0.0] * self.months,
             'gastos_fijos_servicios': self.df_gastos['gastos_fijos_totales'].values.copy(),
             'gastos_nomina': self.df_nominas['coste_empresa_total'].values.copy(),
             'ebitda': [0.0] * self.months,
             'amortizaciones': self.df_amortizaciones['amortizacion_total'].values.copy(),
+            'imputacion_subvenciones': self.df_amortizaciones['imputacion_subvenciones'].values.copy(),
             'ebit': [0.0] * self.months,
             'gastos_financieros': [0.0] * self.months,
             'ebt': [0.0] * self.months,
@@ -562,16 +646,19 @@ class FinancialEngine:
 
         resultado_acum = 0.0
         for i in range(self.months):
-            # Margen comercial = Ingresos - Costes variables
-            data['margen_comercial'][i] = data['ingresos'][i] - data['costes_variables'][i]
+            # Margen comercial = Ingresos + Ingresos trabajo propio activo - Costes variables
+            data['margen_comercial'][i] = (data['ingresos'][i] +
+                                            data['ingresos_trabajo_propio_activo'][i] -
+                                            data['costes_variables'][i])
 
             # EBITDA = Margen - Gastos fijos - Nóminas
             data['ebitda'][i] = (data['margen_comercial'][i] -
                                  data['gastos_fijos_servicios'][i] -
                                  data['gastos_nomina'][i])
 
-            # EBIT = EBITDA - Amortizaciones
-            data['ebit'][i] = data['ebitda'][i] - data['amortizaciones'][i]
+            # EBIT = EBITDA - Amortizaciones + Imputación subvenciones
+            data['ebit'][i] = (data['ebitda'][i] - data['amortizaciones'][i] +
+                               data['imputacion_subvenciones'][i])
 
             # EBT = EBIT - Gastos financieros
             data['ebt'][i] = data['ebit'][i] - data['gastos_financieros'][i]
@@ -598,20 +685,32 @@ class FinancialEngine:
         intereses = [0.0] * self.months
 
         # Pre-calcular IVA neto mensual (IVA repercutido - IVA soportado)
-        # Nota: El IVA de inversiones del mes 1 (pagadas en mes 0) se trata especialmente
-        iva_inversiones_mes0 = sum(inv.iva for inv in self.inversiones if inv.mes_adquisicion == 1)
-
         iva_neto_mensual = [0.0] * self.months
         for i in range(self.months):
             iva_rep = self.df_ventas['iva_repercutido'][i]
-            # Solo incluir IVA de inversiones que NO son del mes 1 (las del mes 1 van en mes 0)
             iva_inv = self.df_amortizaciones['iva_soportado_inversiones'][i]
-            if i == 0:
-                iva_inv = 0  # El IVA de inversiones mes 1 ya está en saldo_inicial, se devuelve aparte
             iva_sop = (self.df_gastos['iva_soportado_gastos'][i] +
                       iva_inv +
                       self.df_ventas['costes_variables'][i] * self.tax_config.iva_compras)
             iva_neto_mensual[i] = iva_rep - iva_sop
+
+        # Pre-calcular IS preliminar mensual (sin intereses póliza, primera aproximación)
+        is_preliminar = [0.0] * self.months
+        for i in range(self.months):
+            ingresos_mes = self.df_ventas['ventas_totales'][i]
+            tpa_mes = self.df_amortizaciones['ingresos_trabajo_propio_activo'][i]
+            cv_mes = self.df_ventas['costes_variables'][i]
+            gf_mes = self.df_gastos['gastos_fijos_totales'][i]
+            nom_mes = self.df_nominas['coste_empresa_total'][i]
+            amort_mes = self.df_amortizaciones['amortizacion_total'][i]
+            subv_mes = self.df_amortizaciones['imputacion_subvenciones'][i]
+            int_prest_mes = self.df_financiacion['pago_intereses'][i]
+
+            ebitda_mes = ingresos_mes + tpa_mes - cv_mes - gf_mes - nom_mes
+            ebit_mes = ebitda_mes - amort_mes + subv_mes
+            ebt_mes = ebit_mes - int_prest_mes
+            if ebt_mes > 0:
+                is_preliminar[i] = ebt_mes * self.tax_config.is_rate
 
         # Calcular cash flow preliminar para determinar déficit
         cf_acum = getattr(self, 'saldo_inicial_tesoreria', 0.0)
@@ -647,12 +746,8 @@ class FinancialEngine:
                 pagos_irpf = self.df_nominas['irpf'][i-1]
 
             # Pagos IVA (mensual a mes vencido)
-            # Mes 1: se devuelve el IVA de inversiones del mes 0 (no hay mes anterior)
-            # Mes 2+: pago del IVA neto del mes anterior
             pagos_iva = 0.0
-            if i == 0:
-                pagos_iva = -iva_inversiones_mes0  # Devolución del IVA inversiones mes 0
-            else:
+            if i > 0:
                 pagos_iva = iva_neto_mensual[i - 1]
 
             # Pagos inversiones (las del mes 1 ya se pagaron en el mes 0, saldo inicial)
@@ -661,11 +756,25 @@ class FinancialEngine:
                 if inv.mes_adquisicion == i + 1 and inv.mes_adquisicion > 1:
                     pagos_inv += inv.total_con_iva
 
+            # Pagos IS (mensual a mes vencido, como en calculate_flujo_tesoreria)
+            pagos_is = 0.0
+            if i > 0 and is_preliminar[i - 1] > 0:
+                pagos_is = is_preliminar[i - 1]
+
             # Entradas financiación
             entrada_cap = self.df_financiacion['entrada_capital'][i]
             entrada_prest = self.df_financiacion['entrada_prestamos'][i]
             pago_prest = self.df_financiacion['pago_capital_prestamos'][i]
             pago_int = self.df_financiacion['pago_intereses'][i]
+
+            # Cobros subvenciones (inversiones mes>1 + proyectos trabajo)
+            cobros_sub = 0.0
+            for inv in self.inversiones:
+                if inv.subvencion > 0 and inv.mes_adquisicion == i + 1 and inv.mes_adquisicion > 1:
+                    cobros_sub += inv.subvencion
+            for proy in self.proyectos_trabajo:
+                if proy.subvencion > 0 and proy.mes_fin_proyecto == i + 1:
+                    cobros_sub += proy.subvencion
 
             # Calcular intereses de la póliza del mes anterior (se pagan este mes)
             interes_poliza_mes = 0.0
@@ -675,8 +784,9 @@ class FinancialEngine:
 
             # CF neto del mes (incluyendo todos los componentes)
             cf_mes = (cobros - pagos_prov - pagos_gf - pagos_nom -
-                     pagos_ss - pagos_irpf - pagos_iva - pagos_inv +
-                     entrada_cap + entrada_prest - pago_prest - pago_int -
+                     pagos_ss - pagos_irpf - pagos_iva - pagos_inv -
+                     pagos_is +
+                     entrada_cap + entrada_prest + cobros_sub - pago_prest - pago_int -
                      interes_poliza_mes)
 
             cf_acum += cf_mes
@@ -716,6 +826,7 @@ class FinancialEngine:
             # Financiación
             'entrada_capital': self.df_financiacion['entrada_capital'].values.copy(),
             'entrada_prestamos': self.df_financiacion['entrada_prestamos'].values.copy(),
+            'cobros_subvenciones': [0.0] * self.months,
             'pagos_prestamos': [0.0] * self.months,
             'cf_financiacion': [0.0] * self.months,
             # Totales
@@ -758,30 +869,18 @@ class FinancialEngine:
 
         # Pagos IVA (mensual a mes vencido, como en el Excel)
         # Calcular IVA neto de cada mes: IVA repercutido - IVA soportado
-        # Nota: El IVA de inversiones del mes 1 (pagadas en mes 0) se trata especialmente
-        iva_inversiones_mes0 = sum(inv.iva for inv in self.inversiones if inv.mes_adquisicion == 1)
-
         iva_neto_mensual = [0.0] * self.months
         for i in range(self.months):
             iva_rep = self.df_ventas['iva_repercutido'][i]
-            # Solo incluir IVA de inversiones que NO son del mes 1 (las del mes 1 van en mes 0)
             iva_inv = self.df_amortizaciones['iva_soportado_inversiones'][i]
-            if i == 0:
-                iva_inv = 0  # El IVA de inversiones mes 1 ya está en saldo_inicial, se devuelve aparte
             iva_sop = (self.df_gastos['iva_soportado_gastos'][i] +
                       iva_inv +
                       self.df_ventas['costes_variables'][i] * self.tax_config.iva_compras)
             iva_neto_mensual[i] = iva_rep - iva_sop
 
         # Liquidación mensual con 1 mes de retraso
-        # Mes 1: se devuelve el IVA de inversiones del mes 0 (no hay mes anterior)
-        # Mes 2+: pago del IVA neto del mes anterior
-        for i in range(self.months):
-            if i == 0:
-                data['pagos_iva'][i] = -iva_inversiones_mes0  # Devolución del IVA inversiones mes 0
-            else:
-                # Mes anterior: positivo = pago a Hacienda, negativo = devolución
-                data['pagos_iva'][i] = iva_neto_mensual[i - 1]
+        for i in range(1, self.months):
+            data['pagos_iva'][i] = iva_neto_mensual[i - 1]
 
         # Pagos IS (mensual a mes vencido, como en el Excel)
         for i in range(1, self.months):
@@ -793,6 +892,14 @@ class FinancialEngine:
         for inv in self.inversiones:
             if inv.mes_adquisicion > 1 and inv.mes_adquisicion <= self.months:
                 data['pagos_inversiones'][inv.mes_adquisicion - 1] += inv.total_con_iva
+
+        # Cobros subvenciones: inversiones mes>1 en su mes_adquisicion (mes 1 ya está en saldo_inicial)
+        for inv in self.inversiones:
+            if inv.subvencion > 0 and inv.mes_adquisicion > 1 and inv.mes_adquisicion <= self.months:
+                data['cobros_subvenciones'][inv.mes_adquisicion - 1] += inv.subvencion
+        for proy in self.proyectos_trabajo:
+            if proy.subvencion > 0 and proy.mes_fin_proyecto <= self.months:
+                data['cobros_subvenciones'][proy.mes_fin_proyecto - 1] += proy.subvencion
 
         # Pagos préstamos (capital)
         data['pagos_prestamos'] = self.df_financiacion['pago_capital_prestamos'].values.copy()
@@ -823,7 +930,8 @@ class FinancialEngine:
 
             # CF Financiación (solo movimientos de capital, sin intereses)
             data['cf_financiacion'][i] = (data['entrada_capital'][i] +
-                                          data['entrada_prestamos'][i] -
+                                          data['entrada_prestamos'][i] +
+                                          data['cobros_subvenciones'][i] -
                                           data['pagos_prestamos'][i])
 
             # CF Neto
@@ -864,6 +972,7 @@ class FinancialEngine:
             # Patrimonio neto
             'capital': [0.0] * self.months,
             'resultado_acumulado': [0.0] * self.months,
+            'subvenciones_capital': [0.0] * self.months,
             'patrimonio_neto': [0.0] * self.months,
             # Pasivo no corriente
             'deuda_largo_plazo': self.df_financiacion['deuda_largo_plazo'].values.copy(),
@@ -886,12 +995,19 @@ class FinancialEngine:
             # Resultado acumulado
             data['resultado_acumulado'][i] = self.cuenta_resultados['resultado_acumulado'][i]
 
+            # Subvenciones de capital: total subvenciones - amortización acumulada de subvenciones
+            total_subvenciones = sum(inv.subvencion for inv in self.inversiones)
+            total_subvenciones += sum(p.subvencion for p in self.proyectos_trabajo)
+            imputacion_acumulada = sum(self.cuenta_resultados['imputacion_subvenciones'][0:i+1])
+            data['subvenciones_capital'][i] = total_subvenciones - imputacion_acumulada
+
             # Calcular totales
             data['activo_no_corriente'][i] = data['inmovilizado'][i]
             data['activo_corriente'][i] = data['tesoreria'][i]
             data['activo_total'][i] = data['activo_no_corriente'][i] + data['activo_corriente'][i]
 
-            data['patrimonio_neto'][i] = data['capital'][i] + data['resultado_acumulado'][i]
+            data['patrimonio_neto'][i] = (data['capital'][i] + data['resultado_acumulado'][i] +
+                                          data['subvenciones_capital'][i])
 
             data['pasivo_no_corriente'][i] = data['deuda_largo_plazo'][i]
             data['pasivo_corriente'][i] = data['deuda_corto_plazo'][i] + data['poliza_credito'][i]
@@ -1023,10 +1139,12 @@ class FinancialEngine:
         data = {
             'ano': list(range(1, self.years + 1)),
             'ingresos': [],
+            'ingresos_trabajo_propio_activo': [],
             'costes_variables': [],
             'margen_comercial': [],
             'gastos_fijos': [],
             'ebitda': [],
+            'imputacion_subvenciones': [],
             'resultado': [],
             'cf_neto': [],
             'tesoreria_final': [],
@@ -1037,12 +1155,14 @@ class FinancialEngine:
             fin = ano * 12
 
             data['ingresos'].append(sum(self.cuenta_resultados['ingresos'][inicio:fin]))
+            data['ingresos_trabajo_propio_activo'].append(sum(self.cuenta_resultados['ingresos_trabajo_propio_activo'][inicio:fin]))
             data['costes_variables'].append(sum(self.cuenta_resultados['costes_variables'][inicio:fin]))
             data['margen_comercial'].append(sum(self.cuenta_resultados['margen_comercial'][inicio:fin]))
             gastos = sum(self.cuenta_resultados['gastos_fijos_servicios'][inicio:fin])
             gastos += sum(self.cuenta_resultados['gastos_nomina'][inicio:fin])
             data['gastos_fijos'].append(gastos)
             data['ebitda'].append(sum(self.cuenta_resultados['ebitda'][inicio:fin]))
+            data['imputacion_subvenciones'].append(sum(self.cuenta_resultados['imputacion_subvenciones'][inicio:fin]))
             data['resultado'].append(sum(self.cuenta_resultados['resultado'][inicio:fin]))
             data['cf_neto'].append(sum(self.flujo_tesoreria['cf_neto'][inicio:fin]))
             data['tesoreria_final'].append(self.flujo_tesoreria['tesoreria_disponible'][fin - 1])
