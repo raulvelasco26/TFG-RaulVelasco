@@ -297,6 +297,7 @@ class FinancialEngine:
         self.proyectos_trabajo: List[ProyectoTrabajoActivoPropio] = []
         self.prestamos: List[Prestamo] = []
         self.capital_inicial: float = 0
+        self.ampliaciones: List[Dict] = []
         self.poliza_credito_interes: float = 0.03
         self.gastos_fijos: List[GastoFijo] = []
         self.empleados: List[Empleado] = []
@@ -355,6 +356,7 @@ class FinancialEngine:
     def set_financiacion(self, financiacion: Dict[str, Any]):
         """Establece las fuentes de financiación"""
         self.capital_inicial = financiacion.get('capital_inicial', 0)
+        self.ampliaciones = financiacion.get('ampliaciones', [])  # [{mes, importe}]
         self.poliza_credito_interes = financiacion.get('poliza_interes', 0.03)
 
         self.prestamos = []
@@ -577,6 +579,13 @@ class FinancialEngine:
                 self.saldo_inicial_tesoreria -= inv.total_con_iva
                 if inv.subvencion > 0:
                     self.saldo_inicial_tesoreria += inv.subvencion
+
+        # Ampliaciones de capital - entran como flujo en su mes
+        for amp in self.ampliaciones:
+            mes = amp.get('mes', 13)
+            importe = amp.get('importe', 0)
+            if importe > 0 and 1 <= mes <= self.months:
+                data['entrada_capital'][mes - 1] += importe
 
         # Préstamos - entran como flujo en su mes de inicio
         for prestamo in self.prestamos:

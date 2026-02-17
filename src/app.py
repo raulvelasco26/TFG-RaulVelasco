@@ -146,9 +146,8 @@ def init_session_state():
     # === FINANCIACIÓN ===
     if "financiacion" not in st.session_state:
         st.session_state.financiacion = {
-            "capital_inicial": 0,
-            "ampliacion_2": 0,
-            "ampliacion_3": 0,
+            "capital_inicial": {"importe": 0, "acciones": 0},
+            "ampliacion": {"mes": 21, "importe": 0, "valoracion_premoney": 0},
             "prestamo1": {
                 "importe": 0, "mes_inicio": 1, "meses_carencia": 0,
                 "meses_amortizacion": 60, "interes": 5.0
@@ -596,8 +595,21 @@ def prepare_financial_engine():
             "interes_anual": p2.get("interes", 0.0) / 100
         })
 
+    # Capital: leer del nuevo formato {importe, acciones}
+    cap_ini = financiacion_data.get("capital_inicial", {})
+    if isinstance(cap_ini, dict):
+        capital_inicial_total = cap_ini.get("importe", 0)
+    else:
+        capital_inicial_total = cap_ini  # Backward compatibility
+
+    ampliacion_data = financiacion_data.get("ampliacion", {})
+    ampliaciones = []
+    if isinstance(ampliacion_data, dict) and ampliacion_data.get("importe", 0) > 0:
+        ampliaciones.append({"mes": ampliacion_data.get("mes", 21), "importe": ampliacion_data["importe"]})
+
     engine.set_financiacion({
-        "capital_inicial": financiacion_data.get("capital_inicial", 0),
+        "capital_inicial": capital_inicial_total,
+        "ampliaciones": ampliaciones,
         "poliza_interes": financiacion_data.get("poliza_interes", 3.0) / 100,
         "prestamos": prestamos
     })
@@ -1409,31 +1421,96 @@ def render_stage_financiacion():
         # === FINANCIACIÓN INTERNA ===
         st.markdown("#### 💰 Financiación Interna (Capital)")
 
+        # Migración: si capital_inicial es un int/float o formato antiguo, convertir
+        cap_ini = st.session_state.financiacion.get("capital_inicial", {})
+        if isinstance(cap_ini, (int, float)):
+            st.session_state.financiacion["capital_inicial"] = {"importe": int(cap_ini), "acciones": int(cap_ini)}
+        elif isinstance(cap_ini, dict) and "nominal" in cap_ini:
+            old_importe = cap_ini.get("acciones", 0) * cap_ini.get("nominal", 1.0)
+            st.session_state.financiacion["capital_inicial"] = {"importe": int(old_importe), "acciones": cap_ini.get("acciones", 0)}
+        if "ampliacion" not in st.session_state.financiacion or "nominal" in st.session_state.financiacion.get("ampliacion", {}):
+            old_amp = st.session_state.financiacion.get("ampliacion", {})
+            st.session_state.financiacion.pop("ampliacion_2", None)
+            st.session_state.financiacion.pop("ampliacion_3", None)
+            st.session_state.financiacion["ampliacion"] = {
+                "mes": old_amp.get("mes", 21),
+                "importe": 0,
+                "valoracion_premoney": 0
+            }
+
+        cap_data = st.session_state.financiacion["capital_inicial"]
+        amp_data = st.session_state.financiacion["ampliacion"]
+
+        st.markdown("**Capital inicial desembolsado por los fundadores**")
         col1, col2, col3 = st.columns(3)
         with col1:
-            capital = st.number_input(
-                "Capital inicial (€)",
-                value=st.session_state.financiacion["capital_inicial"],
-                min_value=0, step=1000,
-                help="Aportación de los fundadores al inicio"
+            cap_importe = st.number_input(
+                "Importe (€)", value=cap_data["importe"],
+                min_value=0, step=1000, key="cap_ini_importe"
             )
-            st.session_state.financiacion["capital_inicial"] = capital
+            cap_data["importe"] = cap_importe
         with col2:
-            amp2 = st.number_input(
-                "Ampliación Año 2 (€)",
-                value=st.session_state.financiacion["ampliacion_2"],
-                min_value=0, step=1000,
-                help="Aportación adicional en el año 2"
+            cap_acciones = st.number_input(
+                "Acciones emitidas", value=cap_data["acciones"],
+                min_value=0, step=100, key="cap_ini_acciones"
             )
-            st.session_state.financiacion["ampliacion_2"] = amp2
+            cap_data["acciones"] = cap_acciones
         with col3:
-            amp3 = st.number_input(
-                "Ampliación Año 3 (€)",
-                value=st.session_state.financiacion["ampliacion_3"],
-                min_value=0, step=1000,
-                help="Aportación adicional en el año 3"
+            if cap_acciones > 0:
+                valor_accion_ini = cap_importe / cap_acciones
+                st.metric("Valor/acción", f"{valor_accion_ini:,.2f} €")
+            else:
+                st.metric("Valor/acción", "-")
+        capital = cap_importe
+
+        st.markdown("**Ampliación de capital 1 (prevista en el mes a indicar)**")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            amp_mes = st.number_input(
+                "Mes previsto (1-60)", value=amp_data["mes"],
+                min_value=1, max_value=60, key="amp_mes"
             )
-            st.session_state.financiacion["ampliacion_3"] = amp3
+            amp_data["mes"] = amp_mes
+        with col2:
+            amp_importe = st.number_input(
+                "Importe (€)", value=amp_data["importe"],
+                min_value=0, step=1000, key="amp_importe"
+            )
+            amp_data["importe"] = amp_importe
+        with col3:
+            amp_valoracion = st.number_input(
+                "Valoración pre-money (€)", value=amp_data["valoracion_premoney"],
+                min_value=0, step=10000, key="amp_valoracion"
+            )
+            amp_data["valoracion_premoney"] = amp_valoracion
+
+        # Mostrar tabla resumen de refinanciación
+        if cap_acciones > 0:
+            # Capital inicial
+            valor_accion_cap = cap_importe / cap_acciones if cap_acciones > 0 else 0
+
+            # Ampliación
+            if amp_importe > 0 and amp_valoracion > 0:
+                precio_accion_amp = amp_valoracion / cap_acciones
+                acciones_nuevas = amp_importe / precio_accion_amp if precio_accion_amp > 0 else 0
+                acciones_totales = cap_acciones + acciones_nuevas
+                valor_accion_amp = (amp_valoracion + amp_importe) / acciones_totales if acciones_totales > 0 else 0
+                pct_nuevos = acciones_nuevas / acciones_totales if acciones_totales > 0 else 0
+                valor_fundadores = amp_valoracion
+            else:
+                acciones_totales = cap_acciones
+                valor_accion_amp = amp_valoracion / cap_acciones if amp_valoracion > 0 else valor_accion_cap
+                pct_nuevos = 0
+                valor_fundadores = amp_valoracion if amp_valoracion > 0 else cap_importe
+
+            st.caption(
+                f"Tras ampliación: {acciones_totales:,.0f} acciones | "
+                f"Valor/acción: {valor_accion_amp:,.2f} € | "
+                f"% nuevos socios: {pct_nuevos:.1%} | "
+                f"Valor fundadores: {valor_fundadores:,.0f} €"
+            )
+
+        ampliacion = amp_importe
 
         # === PRÉSTAMOS ===
         st.markdown("#### 🏦 Financiación Externa (Préstamos)")
@@ -1569,7 +1646,7 @@ def render_stage_financiacion():
         st.markdown("---")
         st.markdown("### 📊 Resumen de Financiación")
 
-        total_capital = capital + amp2 + amp3
+        total_capital = capital + ampliacion
         total_prestamos = p1_importe + p2_importe
         total_disponible = total_capital + total_prestamos
 
@@ -2740,6 +2817,54 @@ def render_stage_analisis():
 
             df_margenes = pd.DataFrame(margenes_data)
             st.dataframe(df_margenes, use_container_width=True, hide_index=True)
+
+            st.markdown("---")
+
+            # Refinanciación con capital
+            st.markdown("#### 💼 Refinanciación con Capital")
+            fin_data = st.session_state.financiacion
+            cap_data_analisis = fin_data.get("capital_inicial", {})
+            amp_data_analisis = fin_data.get("ampliacion", {})
+
+            cap_imp = cap_data_analisis.get("importe", 0) if isinstance(cap_data_analisis, dict) else cap_data_analisis
+            cap_acc = cap_data_analisis.get("acciones", 0) if isinstance(cap_data_analisis, dict) else 0
+            amp_imp = amp_data_analisis.get("importe", 0) if isinstance(amp_data_analisis, dict) else 0
+            amp_mes_val = amp_data_analisis.get("mes", 21) if isinstance(amp_data_analisis, dict) else 21
+            amp_val = amp_data_analisis.get("valoracion_premoney", 0) if isinstance(amp_data_analisis, dict) else 0
+
+            # Calcular fila capital inicial
+            valor_accion_cap = cap_imp / cap_acc if cap_acc > 0 else 0
+
+            # Calcular fila ampliación
+            if amp_imp > 0 and amp_val > 0 and cap_acc > 0:
+                precio_accion = amp_val / cap_acc
+                acc_nuevas = amp_imp / precio_accion if precio_accion > 0 else 0
+                acc_totales_amp = cap_acc + acc_nuevas
+                valor_accion_amp_calc = (amp_val + amp_imp) / acc_totales_amp if acc_totales_amp > 0 else 0
+                pct_nuevos_amp = acc_nuevas / acc_totales_amp if acc_totales_amp > 0 else 0
+                valor_fund_amp = amp_val
+            else:
+                acc_totales_amp = cap_acc
+                valor_accion_amp_calc = amp_val / cap_acc if (amp_val > 0 and cap_acc > 0) else valor_accion_cap
+                pct_nuevos_amp = 0
+                valor_fund_amp = amp_val if amp_val > 0 else cap_imp
+
+            refin_data = {
+                "Concepto": [
+                    "Capital inicial (fundadores)",
+                    f"Ampliación capital 1 (mes {amp_mes_val})"
+                ],
+                "Mes entrada": [0, amp_mes_val],
+                "Importe": [fmt(cap_imp), fmt(amp_imp)],
+                "Valoración (pre-money)": [fmt(cap_imp), fmt(amp_val)],
+                "Acciones circulación": [f"{cap_acc:,.0f}" if cap_acc > 0 else "-", f"{acc_totales_amp:,.0f}" if acc_totales_amp > 0 else "-"],
+                "Valor/acción": [f"{valor_accion_cap:,.2f} €" if cap_acc > 0 else "-", f"{valor_accion_amp_calc:,.2f} €" if acc_totales_amp > 0 else "-"],
+                "% nuevos socios": ["0%", f"{pct_nuevos_amp:.1%}"],
+                "Valor fundadores": [fmt(cap_imp), fmt(valor_fund_amp)]
+            }
+
+            df_refin = pd.DataFrame(refin_data)
+            st.dataframe(df_refin, use_container_width=True, hide_index=True)
 
             st.markdown("---")
 
