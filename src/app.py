@@ -380,7 +380,25 @@ def render_sidebar():
         st.markdown("---")
         if progress >= 1.0:
             if st.button("📥 Descargar Excel", type="primary", use_container_width=True):
-                st.toast("Funcionalidad en desarrollo", icon="🔧")
+                with st.spinner("Generando Excel..."):
+                    try:
+                        from components.excel_generator import fill_template
+                        excel_bytes = fill_template(st.session_state)
+                        nombre = st.session_state.proyecto.get("nombre", "PEF") or "PEF"
+                        filename = f"PEF_{nombre.replace(' ', '_')}.xlsx"
+                        output_path = Config.OUTPUT_DIR / filename
+                        Config.OUTPUT_DIR.mkdir(exist_ok=True)
+                        output_path.write_bytes(excel_bytes)
+                        st.success(f"✅ Guardado en output/{filename}")
+                        st.download_button(
+                            label="💾 Descargar Excel",
+                            data=excel_bytes,
+                            file_name=filename,
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                        )
+                    except Exception as e:
+                        st.error(f"Error generando Excel: {e}")
         else:
             st.info("💡 Completa todas las etapas para generar el Excel")
 
@@ -3013,13 +3031,25 @@ def render_stage_analisis():
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             if st.button("📥 Generar y Descargar Excel", type="primary", use_container_width=True):
-                st.toast("Generando archivo Excel...", icon="⏳")
-                # Aquí iría la lógica de generación con ExcelGenerator
-                st.success("✅ Archivo generado correctamente")
-                st.info("💾 El archivo se descargará automáticamente")
-
-                # Placeholder para el botón de descarga real
-                # st.download_button(...)
+                with st.spinner("Generando Excel..."):
+                    try:
+                        from components.excel_generator import fill_template
+                        excel_bytes = fill_template(st.session_state)
+                        nombre = st.session_state.proyecto.get("nombre", "PEF") or "PEF"
+                        filename = f"PEF_{nombre.replace(' ', '_')}.xlsx"
+                        output_path = Config.OUTPUT_DIR / filename
+                        Config.OUTPUT_DIR.mkdir(exist_ok=True)
+                        output_path.write_bytes(excel_bytes)
+                        st.success(f"✅ Guardado en output/{filename}")
+                        st.download_button(
+                            label="💾 Descargar Excel generado",
+                            data=excel_bytes,
+                            file_name=filename,
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                        )
+                    except Exception as e:
+                        st.error(f"Error generando Excel: {e}")
 
         st.markdown("---")
 
