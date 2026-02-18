@@ -486,11 +486,11 @@ class TestFinancialEngine:
         assert 'inmovilizado_neto' in df.columns
         assert len(df) == 60
 
-        # Mes de adquisición (mes 1, idx 0): sin amortización
-        assert df['amortizacion_total'][0] == 0.0
+        # Amortización empieza el mismo mes de adquisición (mes 1, idx 0)
+        expected_amort = 10000/60 + 5000/120  # 166.67 + 41.67 = 208.33
+        assert abs(df['amortizacion_total'][0] - expected_amort) < 0.01
 
-        # Amortización empieza en mes 2 (idx 1): 10000/(5*12) + 5000/(10*12) = 166.67 + 41.67 = 208.33
-        expected_amort = 10000/60 + 5000/120
+        # Mes 2 (idx 1): misma amortización
         assert abs(df['amortizacion_total'][1] - expected_amort) < 0.01
 
     def test_calculate_financiacion_mensual(self, engine_con_datos):

@@ -512,9 +512,9 @@ class FinancialEngine:
             iva_mes = 0.0
             imputacion_sub_mes = 0.0
 
-            # Inversiones normales (amortización empieza el mes siguiente a la adquisición)
+            # Inversiones normales (amortización empieza el mismo mes de adquisición)
             for inv in self.inversiones:
-                if inv.mes_adquisicion < mes <= inv.mes_fin_amortizacion:
+                if inv.mes_adquisicion <= mes <= inv.mes_fin_amortizacion:
                     amort_mes += inv.amortizacion_mensual
                     # Imputación de subvención de esta inversión
                     if inv.subvencion > 0 and inv.vida_util_anos > 0:
@@ -601,12 +601,18 @@ class FinancialEngine:
                 data['pago_intereses'][idx] += cuota['intereses']
                 capital_pendiente -= cuota['capital']
 
-                # Clasificar deuda LP/CP
-                meses_restantes = prestamo.mes_final - mes
-                if meses_restantes > 12:
-                    data['deuda_largo_plazo'][idx] += max(0, capital_pendiente)
-                else:
-                    data['deuda_corto_plazo'][idx] += max(0, capital_pendiente)
+                # Clasificar deuda LP/CP:
+                # CP = próximos 12 meses de amortización de principal
+                # LP = resto del saldo pendiente
+                proximos_12 = sum(
+                    prestamo.get_cuota_mensual(m)['capital']
+                    for m in range(mes + 1, min(mes + 13, self.months + 1))
+                )
+                saldo = max(0, capital_pendiente)
+                cp = min(proximos_12, saldo)
+                lp = saldo - cp
+                data['deuda_largo_plazo'][idx] += lp
+                data['deuda_corto_plazo'][idx] += cp
 
         return pd.DataFrame(data)
 
@@ -887,6 +893,9 @@ class FinancialEngine:
                       self.df_ventas['costes_variables'][i] * self.tax_config.iva_compras)
             iva_neto_mensual[i] = iva_rep - iva_sop
 
+        # Guardar IVA neto mensual para usarlo en el balance (acreedores/deudores)
+        self.iva_neto_mensual = iva_neto_mensual
+
         # Liquidación mensual con 1 mes de retraso
         for i in range(1, self.months):
             data['pagos_iva'][i] = iva_neto_mensual[i - 1]
@@ -995,9 +1004,9 @@ class FinancialEngine:
             'check_balance': [0.0] * self.months,
         }
 
-        capital_acum = 0.0
+        capital_acum = self.capital_inicial
         for i in range(self.months):
-            # Acumular entradas de capital
+            # Acumular entradas de capital (ampliaciones)
             capital_acum += self.df_financiacion['entrada_capital'][i]
             data['capital'][i] = capital_acum
 
@@ -1010,16 +1019,29 @@ class FinancialEngine:
             imputacion_acumulada = sum(self.cuenta_resultados['imputacion_subvenciones'][0:i+1])
             data['subvenciones_capital'][i] = total_subvenciones - imputacion_acumulada
 
+            # Crédito fiscal IS: 25% de pérdidas acumuladas (activo diferido + pasivo simétrico)
+            # Aparece en ambos lados del balance (como en el Excel): no afecta al PN
+            is_credito = max(-data['resultado_acumulado'][i], 0) * self.tax_config.is_rate
+
+            # Acreedores a corto plazo: SS, IRPF e IVA del mes actual pendientes de liquidar
+            ss_acr = (self.df_nominas['ss_empresa'][i] + self.df_nominas['ss_trabajador'][i])
+            irpf_acr = self.df_nominas['irpf'][i]
+            iva_neto = getattr(self, 'iva_neto_mensual', [0.0] * self.months)[i]
+            iva_acreedora = max(0.0, iva_neto)   # Hacienda acreedora (IVA a pagar)
+            iva_deudora = max(0.0, -iva_neto)    # Hacienda deudora IVA (a cobrar, va a AC)
+
             # Calcular totales
             data['activo_no_corriente'][i] = data['inmovilizado'][i]
-            data['activo_corriente'][i] = data['tesoreria'][i]
+            data['activo_corriente'][i] = data['tesoreria'][i] + is_credito + iva_deudora
             data['activo_total'][i] = data['activo_no_corriente'][i] + data['activo_corriente'][i]
 
             data['patrimonio_neto'][i] = (data['capital'][i] + data['resultado_acumulado'][i] +
                                           data['subvenciones_capital'][i])
 
             data['pasivo_no_corriente'][i] = data['deuda_largo_plazo'][i]
-            data['pasivo_corriente'][i] = data['deuda_corto_plazo'][i] + data['poliza_credito'][i]
+            data['pasivo_corriente'][i] = (data['deuda_corto_plazo'][i] +
+                                           data['poliza_credito'][i] + is_credito +
+                                           ss_acr + irpf_acr + iva_acreedora)
             data['pasivo_total'][i] = data['pasivo_no_corriente'][i] + data['pasivo_corriente'][i]
 
             data['pn_pasivo_total'][i] = data['patrimonio_neto'][i] + data['pasivo_total'][i]
@@ -1131,11 +1153,21 @@ class FinancialEngine:
         self.balance = self.calculate_balance()
         self.ratios = self.calculate_ratios()
 
+        # Calcular componentes de Año 0 para display
+        inv_mes1 = sum(inv.total_con_iva for inv in self.inversiones if inv.mes_adquisicion == 1)
+        inv_mes1_base = sum(inv.importe for inv in self.inversiones if inv.mes_adquisicion == 1)
+        sub_mes1 = sum(inv.subvencion for inv in self.inversiones if inv.mes_adquisicion == 1 and inv.subvencion > 0)
+
         return {
             'cuenta_resultados': self.cuenta_resultados,
             'flujo_tesoreria': self.flujo_tesoreria,
             'balance': self.balance,
-            'ratios': self.ratios
+            'ratios': self.ratios,
+            'saldo_inicial_tesoreria': getattr(self, 'saldo_inicial_tesoreria', 0.0),
+            'capital_inicial': self.capital_inicial,
+            'inversiones_mes1': inv_mes1,
+            'inversiones_mes1_base': inv_mes1_base,
+            'subvenciones_mes1': sub_mes1,
         }
 
     def get_resumen_anual(self) -> pd.DataFrame:

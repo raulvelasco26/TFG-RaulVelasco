@@ -2535,6 +2535,11 @@ def render_stage_analisis():
         flujo_tesoreria = resultados['flujo_tesoreria']
         balance = resultados['balance']
         ratios = resultados['ratios']
+        saldo_inicial = resultados.get('saldo_inicial_tesoreria', 0.0)
+        capital_inicial_val = resultados.get('capital_inicial', 0.0)
+        inversiones_mes1 = resultados.get('inversiones_mes1', 0.0)
+        inversiones_mes1_base = resultados.get('inversiones_mes1_base', 0.0)
+        subvenciones_mes1 = resultados.get('subvenciones_mes1', 0.0)
         hay_datos = True
     except Exception as e:
         hay_datos = False
@@ -2619,6 +2624,9 @@ def render_stage_analisis():
 
             pyl_data = {"Concepto": pyl_conceptos}
 
+            # Año 0: todo ceros (no hay operaciones)
+            pyl_data["Año 0"] = [fmt(0)] * len(pyl_conceptos)
+
             for ano in range(1, 6):
                 col_name = f"Año {ano}"
                 col_values = [
@@ -2671,16 +2679,30 @@ def render_stage_analisis():
         st.caption("Estructura según hoja RESULTADOS del Excel (filas 29-58)")
 
         if hay_datos:
-            # CF por año
+            # CF por año (con Año 0 como en el Excel)
+            # Año 0: solo capital inicial (inversiones mes 1 se descuentan del saldo)
+            inversiones_mes1 = saldo_inicial - capital_inicial_val  # negativo si hay inversiones
             cf_data = {
                 "Concepto": [
                     "CF Operaciones",
                     "CF Inversiones",
                     "CF Financiación",
                     "CF NETO",
-                    "Tesorería final"
+                    "CF Acumulado (Tesorería)"
                 ]
             }
+
+            # Año 0: capital inicial, inversiones mes 1, subvenciones mes 1
+            cf_fin_ano0 = capital_inicial_val + subvenciones_mes1
+            cf_inv_ano0 = -inversiones_mes1
+            tesoreria_ano0 = max(saldo_inicial, 0)  # póliza cubre déficit
+            cf_data["Año 0"] = [
+                fmt(0),
+                fmt(cf_inv_ano0),
+                fmt(cf_fin_ano0),
+                fmt(saldo_inicial),
+                fmt(tesoreria_ano0)
+            ]
 
             for ano in range(1, 6):
                 col_name = f"Año {ano}"
@@ -2699,9 +2721,11 @@ def render_stage_analisis():
             # Métricas de tesorería
             st.markdown("---")
             st.markdown("#### Evolución de Tesorería")
-            cols = st.columns(5)
+            cols = st.columns(6)
+            with cols[0]:
+                st.metric("Año 0", fmt(tesoreria_ano0))
             for i, ano in enumerate(range(1, 6)):
-                with cols[i]:
+                with cols[i + 1]:
                     mes_fin = ano * 12 - 1
                     tesoreria = flujo_tesoreria['tesoreria_disponible'][mes_fin]
                     st.metric(f"Año {ano}", fmt(tesoreria))
@@ -2731,6 +2755,17 @@ def render_stage_analisis():
                     "TOTAL PN + PASIVO"
                 ]
             }
+
+            # Año 0: estado inicial antes de operar
+            anc_0 = inversiones_mes1_base
+            ac_0 = max(saldo_inicial, 0)  # tesorería (póliza cubre déficit)
+            total_a_0 = anc_0 + ac_0
+            pn_0 = capital_inicial_val + subvenciones_mes1
+            pasivo_c_0 = total_a_0 - pn_0  # residual (póliza - IVA soportado)
+            balance_data["Año 0"] = [
+                fmt(anc_0), fmt(ac_0), fmt(total_a_0),
+                "", fmt(pn_0), fmt(0), fmt(pasivo_c_0), fmt(total_a_0)
+            ]
 
             for ano in range(1, 6):
                 col_name = f"Año {ano}"
