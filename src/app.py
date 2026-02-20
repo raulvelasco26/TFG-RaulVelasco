@@ -402,6 +402,30 @@ def render_sidebar():
         else:
             st.info("💡 Completa todas las etapas para generar el Excel")
 
+        # Importar Excel existente
+        st.markdown("---")
+        st.markdown("### 📂 Importar Excel")
+        uploaded_file = st.file_uploader(
+            "Sube un Excel PEF generado",
+            type=["xlsx"],
+            key="import_excel_uploader",
+            help="Importa un Excel PEF_TOOLBOARD previamente generado para restaurar todos los datos",
+        )
+        if uploaded_file is not None:
+            if st.button("📤 Importar datos", use_container_width=True, type="secondary"):
+                with st.spinner("Importando datos del Excel..."):
+                    try:
+                        from components.excel_generator import read_template
+                        data = read_template(uploaded_file.read())
+                        for key, value in data.items():
+                            st.session_state[key] = value
+                        for stage in st.session_state.stages_status:
+                            st.session_state.stages_status[stage] = "complete"
+                        st.success("✅ Datos importados correctamente")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error importando Excel: {e}")
+
         # === DEBUG (solo en modo desarrollo) ===
         if Config.DEBUG:
             st.divider()
