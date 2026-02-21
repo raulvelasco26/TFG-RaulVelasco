@@ -2847,13 +2847,14 @@ def render_stage_analisis():
             st.markdown("#### 💵 Análisis del Cash Flow")
             col1, col2, col3 = st.columns(3)
 
-            min_tesoreria = min(flujo_tesoreria['tesoreria_disponible'])
-            mes_min = flujo_tesoreria['tesoreria_disponible'].tolist().index(min_tesoreria) + 1
+            ratios_glob = ratios.get('globales', {})
+            deficit_max = ratios_glob.get('deficit_maximo', 0)
+            mes_deficit = ratios_glob.get('mes_deficit_maximo', None)
 
             with col1:
-                st.metric("Déficit máximo tesorería", fmt(min_tesoreria))
+                st.metric("Déficit máximo tesorería", fmt(deficit_max) if deficit_max > 0 else "Sin déficit")
             with col2:
-                st.metric("Mes del pico de déficit", f"Mes {mes_min}")
+                st.metric("Mes del pico de déficit", f"Mes {mes_deficit}" if mes_deficit else "—")
             with col3:
                 burn_rate = sum(flujo_tesoreria['cf_neto'][0:12]) / 12
                 st.metric("Burn Rate (medio año 1)", fmt(burn_rate) + "/mes")
@@ -2949,12 +2950,11 @@ def render_stage_analisis():
             st.markdown("#### ⚖️ Punto Muerto (Break-Even)")
             col1, col2, col3 = st.columns(3)
 
-            punto_muerto_unidades = ratios.get('punto_muerto_unidades', 0)
-            mes_punto_muerto = ratios.get('mes_punto_muerto', 0)
-            ventas_equilibrio = ratios.get('ventas_equilibrio', 0)
+            mes_punto_muerto = ratios_glob.get('mes_punto_equilibrio', None)
+            ventas_equilibrio = ratios_glob.get('punto_equilibrio_euros', 0)
 
             with col1:
-                st.metric("Unidades equilibrio", f"{punto_muerto_unidades:,.0f}" if punto_muerto_unidades else "N/A")
+                st.metric("Unidades equilibrio", "N/A")
             with col2:
                 st.metric("Mes punto muerto", f"Mes {mes_punto_muerto}" if mes_punto_muerto else "No alcanzado")
             with col3:
