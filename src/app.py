@@ -365,46 +365,107 @@ def render_sidebar():
         # === ACCIONES ===
         st.markdown("### ⚡ Acciones")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("💾 Guardar", use_container_width=True, help="Guardar progreso actual"):
-                st.toast("Funcionalidad en desarrollo", icon="🔧")
-
-        with col2:
-            if st.button("🔄 Reiniciar", use_container_width=True, help="Comenzar de nuevo"):
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
-                st.rerun()
-
-        # Botón de exportar (solo si está completo)
-        st.markdown("---")
-        if progress >= 1.0:
-            if st.button("📥 Descargar Excel", type="primary", use_container_width=True):
-                with st.spinner("Generando Excel..."):
+        # Exportar Excel
+        nombre_sb_default = st.session_state.proyecto.get("nombre", "PEF") or "PEF"
+        nombre_sb = st.text_input(
+            "Nombre del archivo",
+            value=nombre_sb_default,
+            key="sidebar_export_filename",
+            help="Se guardará como PEF_<nombre>.xlsx en output/",
+        )
+        if st.button("📥 Generar y Guardar Excel", type="primary", use_container_width=True,
+                     disabled=(progress < 1.0),
+                     help="Completa todas las etapas para habilitar" if progress < 1.0 else ""):
+            with st.spinner("Generando Excel..."):
+                try:
+                    from components.excel_generator import fill_template
+                    excel_bytes = fill_template(st.session_state)
+                    safe_name = (nombre_sb or nombre_sb_default).strip().replace(" ", "_")
+                    filename = f"PEF_{safe_name}.xlsx"
+                    Config.OUTPUT_DIR.mkdir(exist_ok=True)
+                    output_path = Config.OUTPUT_DIR / filename
                     try:
-                        from components.excel_generator import fill_template
-                        excel_bytes = fill_template(st.session_state)
-                        nombre = st.session_state.proyecto.get("nombre", "PEF") or "PEF"
-                        filename = f"PEF_{nombre.replace(' ', '_')}.xlsx"
-                        output_path = Config.OUTPUT_DIR / filename
-                        Config.OUTPUT_DIR.mkdir(exist_ok=True)
                         output_path.write_bytes(excel_bytes)
                         st.success(f"✅ Guardado en output/{filename}")
-                        st.download_button(
-                            label="💾 Descargar Excel",
-                            data=excel_bytes,
-                            file_name=filename,
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True,
-                        )
-                    except Exception as e:
-                        st.error(f"Error generando Excel: {e}")
-        else:
-            st.info("💡 Completa todas las etapas para generar el Excel")
+                    except PermissionError:
+                        st.warning(f"⚠️ '{filename}' está abierto en Excel. Descárgalo manualmente.")
+                    st.download_button(
+                        label="💾 Descargar Excel",
+                        data=excel_bytes,
+                        file_name=filename,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                    )
+                except Exception as e:
+                    st.error(f"Error generando Excel: {e}")
+
+        if st.button("🔄 Reiniciar", use_container_width=True, help="Borrar todos los datos y comenzar de nuevo"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
 
         # Importar Excel existente
         st.markdown("---")
         st.markdown("### 📂 Importar Excel")
+
+        def _do_import(excel_bytes):
+            from components.excel_generator import read_template
+            data = read_template(excel_bytes)
+            for key, value in data.items():
+                st.session_state[key] = value
+            for stage in st.session_state.stages_status:
+                st.session_state.stages_status[stage] = "complete"
+
+        # --- Excels guardados en output/ ---
+        Config.OUTPUT_DIR.mkdir(exist_ok=True)
+        saved_files = sorted(
+            Config.OUTPUT_DIR.glob("*.xlsx"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        if saved_files:
+            st.caption(f"📁 {len(saved_files)} archivo(s) en output/")
+            opciones = {p.name: p for p in saved_files}
+            selected_name = st.selectbox(
+                "Selecciona un PEF guardado",
+                options=list(opciones.keys()),
+                key="select_saved_excel",
+            )
+            col_load, col_del = st.columns([2, 1])
+            with col_load:
+                if st.button("📂 Cargar", use_container_width=True, type="primary"):
+                    with st.spinner("Cargando..."):
+                        try:
+                            _do_import(opciones[selected_name].read_bytes())
+                            st.success(f"✅ {selected_name} cargado")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+            with col_del:
+                if st.button("🗑️", use_container_width=True, help=f"Borrar {selected_name}",
+                             key="btn_borrar_excel"):
+                    st.session_state["_confirmar_borrar"] = selected_name
+
+            if st.session_state.get("_confirmar_borrar") == selected_name:
+                st.warning(f"¿Borrar **{selected_name}**?")
+                c1, c2 = st.columns(2)
+                with c1:
+                    if st.button("Sí, borrar", type="primary", use_container_width=True,
+                                 key="btn_confirmar_borrar"):
+                        try:
+                            opciones[selected_name].unlink()
+                            del st.session_state["_confirmar_borrar"]
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error al borrar: {e}")
+                with c2:
+                    if st.button("Cancelar", use_container_width=True, key="btn_cancelar_borrar"):
+                        del st.session_state["_confirmar_borrar"]
+                        st.rerun()
+            st.markdown("---")
+
+        # --- Subir Excel externo ---
+        st.caption("O importa un Excel desde tu ordenador:")
         uploaded_file = st.file_uploader(
             "Sube un Excel PEF generado",
             type=["xlsx"],
@@ -412,15 +473,10 @@ def render_sidebar():
             help="Importa un Excel PEF_TOOLBOARD previamente generado para restaurar todos los datos",
         )
         if uploaded_file is not None:
-            if st.button("📤 Importar datos", use_container_width=True, type="secondary"):
+            if st.button("📤 Importar subido", use_container_width=True, type="secondary"):
                 with st.spinner("Importando datos del Excel..."):
                     try:
-                        from components.excel_generator import read_template
-                        data = read_template(uploaded_file.read())
-                        for key, value in data.items():
-                            st.session_state[key] = value
-                        for stage in st.session_state.stages_status:
-                            st.session_state.stages_status[stage] = "complete"
+                        _do_import(uploaded_file.read())
                         st.success("✅ Datos importados correctamente")
                         st.rerun()
                     except Exception as e:
