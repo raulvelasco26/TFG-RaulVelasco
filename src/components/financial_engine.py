@@ -660,6 +660,8 @@ class FinancialEngine:
             )
 
         resultado_acum = 0.0
+        credito_fiscal_pl = 0.0  # Crédito fiscal acumulado de pérdidas anteriores
+        self._credito_fiscal_pl = [0.0] * self.months  # Saldo restante por mes
         for i in range(self.months):
             # Margen comercial = Ingresos + Ingresos trabajo propio activo - Costes variables
             data['margen_comercial'][i] = (data['ingresos'][i] +
@@ -678,9 +680,17 @@ class FinancialEngine:
             # EBT = EBIT - Gastos financieros
             data['ebt'][i] = data['ebit'][i] - data['gastos_financieros'][i]
 
-            # Impuesto de Sociedades (solo si hay beneficio)
-            if data['ebt'][i] > 0:
-                data['impuesto_sociedades'][i] = data['ebt'][i] * self.tax_config.is_rate
+            # Impuesto de Sociedades con crédito fiscal por pérdidas (como en el Excel)
+            # Meses con pérdida generan crédito; meses con beneficio usan el crédito primero
+            is_bruto = data['ebt'][i] * self.tax_config.is_rate
+            if is_bruto <= 0:
+                credito_fiscal_pl += (-is_bruto)  # Acumular crédito de la pérdida
+                data['impuesto_sociedades'][i] = 0.0
+            else:
+                credito_usado = min(is_bruto, credito_fiscal_pl)
+                credito_fiscal_pl -= credito_usado
+                data['impuesto_sociedades'][i] = is_bruto - credito_usado
+            self._credito_fiscal_pl[i] = credito_fiscal_pl
 
             # Resultado = EBT - IS
             data['resultado'][i] = data['ebt'][i] - data['impuesto_sociedades'][i]
@@ -709,8 +719,9 @@ class FinancialEngine:
                       self.df_ventas['costes_variables'][i] * self.tax_config.iva_compras)
             iva_neto_mensual[i] = iva_rep - iva_sop
 
-        # Pre-calcular IS preliminar mensual (sin intereses póliza, primera aproximación)
-        is_preliminar = [0.0] * self.months
+        # Pre-calcular IS preliminar mensual con crédito fiscal (sin intereses póliza)
+        # Replica la lógica de calculate_cuenta_resultados para tener IS ajustado por crédito
+        is_ebt_bruto = [0.0] * self.months
         for i in range(self.months):
             ingresos_mes = self.df_ventas['ventas_totales'][i]
             tpa_mes = self.df_amortizaciones['ingresos_trabajo_propio_activo'][i]
@@ -724,8 +735,20 @@ class FinancialEngine:
             ebitda_mes = ingresos_mes + tpa_mes - cv_mes - gf_mes - nom_mes
             ebit_mes = ebitda_mes - amort_mes + subv_mes
             ebt_mes = ebit_mes - int_prest_mes
-            if ebt_mes > 0:
-                is_preliminar[i] = ebt_mes * self.tax_config.is_rate
+            is_ebt_bruto[i] = ebt_mes * self.tax_config.is_rate  # puede ser negativo
+
+        # Aplicar crédito fiscal acumulado (mismo mecanismo que cuenta_resultados)
+        is_preliminar = [0.0] * self.months
+        cf_credito = 0.0
+        for i in range(self.months):
+            bruto = is_ebt_bruto[i]
+            if bruto <= 0:
+                cf_credito += (-bruto)
+                is_preliminar[i] = 0.0
+            else:
+                usado = min(bruto, cf_credito)
+                cf_credito -= usado
+                is_preliminar[i] = bruto - usado
 
         # Calcular cash flow preliminar para determinar déficit
         cf_acum = getattr(self, 'saldo_inicial_tesoreria', 0.0)
@@ -771,7 +794,7 @@ class FinancialEngine:
                 if inv.mes_adquisicion == i + 1 and inv.mes_adquisicion > 1:
                     pagos_inv += inv.total_con_iva
 
-            # Pagos IS (mensual a mes vencido, como en calculate_flujo_tesoreria)
+            # Pagos IS: 1 mes de retraso (como en el Excel)
             pagos_is = 0.0
             if i > 0 and is_preliminar[i - 1] > 0:
                 pagos_is = is_preliminar[i - 1]
@@ -900,7 +923,8 @@ class FinancialEngine:
         for i in range(1, self.months):
             data['pagos_iva'][i] = iva_neto_mensual[i - 1]
 
-        # Pagos IS (mensual a mes vencido, como en el Excel)
+        # Pagos IS: 1 mes de retraso ("del mes anterior"), como indica el Excel.
+        # El P&L ya aplica el crédito fiscal, así que pagamos el IS ajustado del mes anterior.
         for i in range(1, self.months):
             is_mes_anterior = self.cuenta_resultados['impuesto_sociedades'][i - 1]
             if is_mes_anterior > 0:
@@ -1019,9 +1043,12 @@ class FinancialEngine:
             imputacion_acumulada = sum(self.cuenta_resultados['imputacion_subvenciones'][0:i+1])
             data['subvenciones_capital'][i] = total_subvenciones - imputacion_acumulada
 
-            # Crédito fiscal IS: 25% de pérdidas acumuladas (activo diferido + pasivo simétrico)
-            # Aparece en ambos lados del balance (como en el Excel): no afecta al PN
-            is_credito = max(-data['resultado_acumulado'][i], 0) * self.tax_config.is_rate
+            # Crédito fiscal IS pendiente de utilizar ("Realizable de IS" en el Excel)
+            # Solo aparece en el activo (deferred tax asset)
+            is_credito = getattr(self, '_credito_fiscal_pl', [0.0] * self.months)[i]
+            # IS payable: IS del mes actual, se pagará el mes siguiente (1-mes de retraso en CF)
+            # Corresponde a "Hacienda pública acreedora por IS" en el Excel
+            is_payable = self.cuenta_resultados['impuesto_sociedades'][i]
 
             # Acreedores a corto plazo: SS, IRPF e IVA del mes actual pendientes de liquidar
             ss_acr = (self.df_nominas['ss_empresa'][i] + self.df_nominas['ss_trabajador'][i])
@@ -1032,6 +1059,7 @@ class FinancialEngine:
 
             # Calcular totales
             data['activo_no_corriente'][i] = data['inmovilizado'][i]
+            # Activo: tesorería + crédito fiscal IS (Realizable de IS) + IVA deudora
             data['activo_corriente'][i] = data['tesoreria'][i] + is_credito + iva_deudora
             data['activo_total'][i] = data['activo_no_corriente'][i] + data['activo_corriente'][i]
 
@@ -1039,8 +1067,11 @@ class FinancialEngine:
                                           data['subvenciones_capital'][i])
 
             data['pasivo_no_corriente'][i] = data['deuda_largo_plazo'][i]
+            # Pasivo corriente: deudas CP + póliza + crédito fiscal IS (simétrico al activo)
+            # + IS payable del mes actual (Hacienda acreedora IS, se paga el mes siguiente)
+            # + SS, IRPF, IVA del mes actual
             data['pasivo_corriente'][i] = (data['deuda_corto_plazo'][i] +
-                                           data['poliza_credito'][i] + is_credito +
+                                           data['poliza_credito'][i] + is_credito + is_payable +
                                            ss_acr + irpf_acr + iva_acreedora)
             data['pasivo_total'][i] = data['pasivo_no_corriente'][i] + data['pasivo_corriente'][i]
 
