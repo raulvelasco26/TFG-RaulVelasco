@@ -1,84 +1,90 @@
 """
-Gestor de conversación con LLM
-Maneja la interacción conversacional con el usuario a través del LLM
+Gestor de conversación con LLM.
+Maneja el historial de mensajes y delega las llamadas al LLMClient.
 """
 
-from typing import Optional, Dict, Any
-import openai
-from anthropic import Anthropic
-from ..config import Config
-from ..utils.prompts import SYSTEM_PROMPT, INITIAL_GREETING
+from typing import Optional
+from components.llm_client import LLMClient
+from config import Config
+from utils.prompts import SYSTEM_PROMPT, INITIAL_GREETING
 
 
 class ConversationManager:
     """
-    Gestiona la conversación con el usuario mediante un LLM
+    Gestiona la conversación con el usuario.
+
+    Responsabilidades:
+    - Mantener el historial de mensajes de la sesión
+    - Añadir/quitar mensajes del contexto
+    - Delegar las llamadas al LLMClient
     """
 
     def __init__(self):
-        """Inicializa el gestor de conversación"""
-        self.provider = Config.MODEL_PROVIDER
-        self.model_name = Config.MODEL_NAME
-        self.conversation_history = []
+        self.client = LLMClient()
+        self.history: list[dict] = []
 
-        # Inicializar cliente según proveedor
-        if self.provider == "openai":
-            openai.api_key = Config.OPENAI_API_KEY
-            self.client = openai
-        elif self.provider == "anthropic":
-            self.client = Anthropic(api_key=Config.ANTHROPIC_API_KEY)
-        else:
-            raise ValueError(f"Proveedor no soportado: {self.provider}")
+    # ------------------------------------------------------------------
+    # Control de conversación
+    # ------------------------------------------------------------------
 
     def start_conversation(self) -> str:
-        """
-        Inicia una nueva conversación
-
-        Returns:
-            str: Mensaje de bienvenida del asistente
-        """
-        # Añadir mensaje del sistema
-        self.conversation_history = [
-            {"role": "system", "content": SYSTEM_PROMPT}
-        ]
-
+        """Reinicia el historial y devuelve el saludo inicial."""
+        self.history = []
         return INITIAL_GREETING
 
-    def send_message(self, user_message: str) -> str:
-        """
-        Envía un mensaje del usuario y obtiene la respuesta del LLM
-
-        Args:
-            user_message: Mensaje del usuario
-
-        Returns:
-            str: Respuesta del asistente
-        """
-        # TODO: Implementar lógica de llamada a la API
-        # TODO: Gestionar contexto de conversación
-        # TODO: Manejar errores de API
-
-        return "Función en desarrollo - se implementará en la siguiente fase"
-
-    def extract_data(self, user_input: str, context: str) -> Dict[str, Any]:
-        """
-        Extrae datos estructurados de la respuesta del usuario
-
-        Args:
-            user_input: Respuesta del usuario
-            context: Contexto de qué datos se esperan
-
-        Returns:
-            dict: Datos extraídos en formato estructurado
-        """
-        # TODO: Implementar extracción de datos con LLM
-        # TODO: Validar formato JSON de respuesta
-
-        return {}
-
     def reset(self):
-        """Reinicia la conversación"""
-        self.conversation_history = []
+        """Limpia el historial."""
+        self.history = []
 
+    # ------------------------------------------------------------------
+    # Envío de mensajes
+    # ------------------------------------------------------------------
 
-# TODO: Implementar completamente en la fase de integración LLM
+    def send_message(self, user_message: str, system: Optional[str] = None) -> str:
+        """
+        Añade el mensaje del usuario al historial, llama al LLM y
+        añade la respuesta al historial.
+
+        Args:
+            user_message: Texto del usuario
+            system: Prompt de sistema para esta llamada (usa SYSTEM_PROMPT si None)
+
+        Returns:
+            Respuesta del asistente como string
+        """
+        self.history.append({"role": "user", "content": user_message})
+
+        response = self.client.chat(
+            messages=self.history,
+            system=system or SYSTEM_PROMPT,
+        )
+
+        self.history.append({"role": "assistant", "content": response})
+        return response
+
+    def extract_data(
+        self,
+        user_message: str,
+        system: str,
+    ) -> dict:
+        """
+        Envía un mensaje esperando una respuesta JSON estructurada.
+        NO añade al historial principal (es una llamada de extracción puntual).
+
+        Args:
+            user_message: Descripción/respuesta del usuario a parsear
+            system: Prompt de sistema con el schema JSON esperado
+
+        Returns:
+            dict con los datos extraídos, o {} si falla
+        """
+        messages = [{"role": "user", "content": user_message}]
+        return self.client.extract_json(messages=messages, system=system)
+
+    # ------------------------------------------------------------------
+    # Propiedades
+    # ------------------------------------------------------------------
+
+    @property
+    def is_configured(self) -> bool:
+        return self.client.is_configured
