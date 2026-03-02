@@ -141,9 +141,6 @@ def init_session_state():
             # Fianzas
             "fianzas": {"importe": 0, "anos": 5, "subvencion": 0},
         }
-        # Pre-inicializar claves de widgets para evitar conflicto con session_state API
-        for _k in _capex_keys:
-            st.session_state[f"capex_{_k}_importe"] = 0
 
     # === CAPEX - Proyectos de inversión en años posteriores ===
     if "proyectos_inversion" not in st.session_state:
@@ -174,12 +171,6 @@ def init_session_state():
             },
             "poliza_interes": 3.0
         }
-        # Pre-inicializar claves de widgets para evitar conflicto con session_state API
-        st.session_state["cap_ini_importe"] = 0
-        st.session_state["cap_ini_acciones"] = 0
-        st.session_state["amp_mes"] = 21
-        st.session_state["amp_importe"] = 0
-        st.session_state["amp_valoracion"] = 0
 
     # === OPEX - Gastos fijos ===
     if "opex" not in st.session_state:
@@ -197,13 +188,6 @@ def init_session_state():
             },
             "empleados": []  # Lista de empleados
         }
-        # Pre-inicializar claves de widgets para evitar conflicto con session_state API
-        _opex_keys = ["alquileres", "suministros", "rentings", "reparaciones",
-                      "servicios_prof", "transportes", "bancarios_seguros", "marketing", "tributos"]
-        for _k in _opex_keys:
-            st.session_state[f"opex_{_k}_ano1"] = 0
-            for _yr in range(2, 6):
-                st.session_state[f"opex_{_k}_inc{_yr}"] = 0.0
 
     # === INGRESOS ===
     if "ingresos" not in st.session_state:
@@ -239,16 +223,6 @@ def init_session_state():
                 "comisiones": 0,
             },
         }
-        # Pre-inicializar claves de widgets para evitar conflicto con session_state API
-        for _k in ("tipo_a", "tipo_b", "tipo_c"):
-            st.session_state[f"ing_{_k}_nombre"] = {"tipo_a": "Producto A", "tipo_b": "Producto B", "tipo_c": "Producto C"}[_k]
-            st.session_state[f"ing_{_k}_sam"] = 0
-            st.session_state[f"ing_{_k}_precio"] = 0.0
-            st.session_state[f"ing_{_k}_cv_prod"] = 0.0
-            st.session_state[f"ing_{_k}_cv_adq"] = 0.0
-            st.session_state[f"ing_{_k}_comisiones"] = 0.0
-            for _yr in range(5):
-                st.session_state[f"ing_{_k}_som{_yr}"] = 0.0
 
     # === Motor de cálculos ===
     if "financial_engine" not in st.session_state:
@@ -695,9 +669,7 @@ def _extract_and_save_capex():
     for key in capex_keys:
         value = data.get(key)
         if value is not None and isinstance(value, (int, float)) and value > 0:
-            importe = int(value)
-            st.session_state.capex[key]["importe"] = importe
-            st.session_state[f"capex_{key}_importe"] = importe
+            st.session_state.capex[key]["importe"] = int(value)
 
 
 def _extract_and_save_financiacion():
@@ -780,15 +752,12 @@ def _extract_and_save_opex():
         # Importe año 1
         value = data.get(key)
         if value is not None and isinstance(value, (int, float)) and value > 0:
-            v = int(value)
-            gf["ano1"] = v
-            st.session_state[f"opex_{key}_ano1"] = v
+            gf["ano1"] = int(value)
         # Incrementos por año
         for yr in range(2, 6):
             inc_val = data.get(f"{key}_inc{yr}")
             if inc_val is not None and isinstance(inc_val, (int, float)):
                 gf["incrementos"][yr - 2] = float(inc_val)
-                st.session_state[f"opex_{key}_inc{yr}"] = float(inc_val)
 
 
 def _extract_and_save_ingresos():
@@ -813,44 +782,36 @@ def _extract_and_save_ingresos():
         nombre = data.get(f"{key}_nombre")
         if nombre and isinstance(nombre, str):
             ing["nombre"] = nombre
-            st.session_state[f"ing_{key}_nombre"] = nombre
 
         sam = data.get(f"{key}_sam")
         if sam is not None and isinstance(sam, (int, float)) and sam > 0:
-            v = int(sam)
-            ing["sam"] = v
-            st.session_state[f"ing_{key}_sam"] = v
+            ing["sam"] = int(sam)
 
         precio = data.get(f"{key}_precio")
         if precio is not None and isinstance(precio, (int, float)) and precio > 0:
             ing["precio"] = float(precio)
-            st.session_state[f"ing_{key}_precio"] = float(precio)
 
         for yr in range(1, 6):
             som_val = data.get(f"{key}_som{yr}")
             if som_val is not None and isinstance(som_val, (int, float)):
-                ing["som"][yr - 1] = float(som_val)  # stored as % (prepare_financial_engine divides by 100)
-                st.session_state[f"ing_{key}_som{yr - 1}"] = float(som_val)
+                ing["som"][yr - 1] = float(som_val)
 
         for yr in range(2, 6):
             inc_val = data.get(f"{key}_inc{yr}")
             if inc_val is not None and isinstance(inc_val, (int, float)):
-                ing["incremento"][yr - 2] = float(inc_val)  # stored as % (prepare_financial_engine divides by 100)
+                ing["incremento"][yr - 2] = float(inc_val)
 
         cv_prod = data.get(f"{key}_cv_prod")
         if cv_prod is not None and isinstance(cv_prod, (int, float)):
             ing["cv_produccion"] = float(cv_prod)
-            st.session_state[f"ing_{key}_cv_prod"] = float(cv_prod)
 
         cv_adq = data.get(f"{key}_cv_adq")
         if cv_adq is not None and isinstance(cv_adq, (int, float)):
             ing["cv_adquisicion"] = float(cv_adq)
-            st.session_state[f"ing_{key}_cv_adq"] = float(cv_adq)
 
         comisiones = data.get(f"{key}_comisiones")
         if comisiones is not None and isinstance(comisiones, (int, float)):
             ing["comisiones"] = float(comisiones)
-            st.session_state[f"ing_{key}_comisiones"] = float(comisiones)
 
 
 # =============================================================================
@@ -914,17 +875,18 @@ def render_mercado_producto(key, titulo):
     col1, col2 = st.columns([1, 3])
     with col1:
         sam = st.number_input(
-            f"SAM {key}", min_value=0, step=100, label_visibility="collapsed",
-            help="Número total de clientes/unidades potenciales en tu mercado",
-            key=f"ing_{key}_sam"
+            f"SAM {key}",
+            value=st.session_state.ingresos[key]["sam"],
+            min_value=0, step=100, label_visibility="collapsed",
+            help="Número total de clientes/unidades potenciales en tu mercado"
         )
         st.session_state.ingresos[key]["sam"] = sam
         st.caption("SAM (mercado)")
     with col2:
         nombre = st.text_input(
             f"Nombre {key}", label_visibility="collapsed",
-            placeholder="Describe tu producto/servicio...",
-            key=f"ing_{key}_nombre"
+            value=st.session_state.ingresos[key]["nombre"],
+            placeholder="Describe tu producto/servicio..."
         )
         st.session_state.ingresos[key]["nombre"] = nombre
 
@@ -936,10 +898,10 @@ def render_mercado_producto(key, titulo):
             st.markdown(f"**Año {i+1}**")
             som = st.number_input(
                 f"SOM {key} {i+1}",
+                value=float(st.session_state.ingresos[key]["som"][i]),
                 min_value=0.0, max_value=100.0, step=0.1, format="%.2f",
                 label_visibility="collapsed",
-                help=f"% del SAM que captarás en año {i+1}",
-                key=f"ing_{key}_som{i}"
+                help=f"% del SAM que captarás en año {i+1}"
             )
             st.session_state.ingresos[key]["som"][i] = som
             st.caption(f"SOM: {som}%")
@@ -1656,14 +1618,15 @@ Por ejemplo:
             with cols[1]:
                 importe = st.number_input(
                     f"Importe {key}",
-                    min_value=0, step=100, key=f"capex_{key}_importe",
+                    value=st.session_state.capex[key]["importe"],
+                    min_value=0, step=100,
                     label_visibility="collapsed"
                 )
                 st.session_state.capex[key]["importe"] = importe
             with cols[2]:
                 anos = st.number_input(
                     f"Años {key}", value=st.session_state.capex[key]["anos"],
-                    min_value=1, max_value=50, key=f"capex_{key}_anos",
+                    min_value=1, max_value=50,
                     label_visibility="collapsed"
                 )
                 st.session_state.capex[key]["anos"] = anos
@@ -1712,14 +1675,15 @@ Por ejemplo:
             with cols[1]:
                 importe = st.number_input(
                     f"Importe {key}",
-                    min_value=0, step=100, key=f"capex_{key}_importe",
+                    value=st.session_state.capex[key]["importe"],
+                    min_value=0, step=100,
                     label_visibility="collapsed"
                 )
                 st.session_state.capex[key]["importe"] = importe
             with cols[2]:
                 anos = st.number_input(
                     f"Años {key}", value=st.session_state.capex[key]["anos"],
-                    min_value=1, max_value=50, key=f"capex_{key}_anos",
+                    min_value=1, max_value=50,
                     label_visibility="collapsed"
                 )
                 st.session_state.capex[key]["anos"] = anos
@@ -2049,12 +2013,14 @@ def render_stage_financiacion():
         col1, col2, col3 = st.columns(3)
         with col1:
             cap_importe = st.number_input(
-                "Importe (€)", min_value=0, step=1000, key="cap_ini_importe"
+                "Importe (€)", value=cap_data.get("importe", 0), min_value=0, step=1000,
+                key="cap_ini_importe"
             )
             cap_data["importe"] = cap_importe
         with col2:
             cap_acciones = st.number_input(
-                "Acciones emitidas", min_value=0, step=100, key="cap_ini_acciones"
+                "Acciones emitidas", value=cap_data.get("acciones", 0), min_value=0, step=100,
+                key="cap_ini_acciones"
             )
             cap_data["acciones"] = cap_acciones
         with col3:
@@ -2069,17 +2035,20 @@ def render_stage_financiacion():
         col1, col2, col3 = st.columns(3)
         with col1:
             amp_mes = st.number_input(
-                "Mes previsto (1-60)", min_value=1, max_value=60, key="amp_mes"
+                "Mes previsto (1-60)", value=amp_data.get("mes", 21), min_value=1, max_value=60,
+                key="amp_mes"
             )
             amp_data["mes"] = amp_mes
         with col2:
             amp_importe = st.number_input(
-                "Importe (€)", min_value=0, step=1000, key="amp_importe"
+                "Importe (€)", value=amp_data.get("importe", 0), min_value=0, step=1000,
+                key="amp_importe"
             )
             amp_data["importe"] = amp_importe
         with col3:
             amp_valoracion = st.number_input(
-                "Valoración pre-money (€)", min_value=0, step=10000, key="amp_valoracion"
+                "Valoración pre-money (€)", value=amp_data.get("valoracion_premoney", 0), min_value=0, step=10000,
+                key="amp_valoracion"
             )
             amp_data["valoracion_premoney"] = amp_valoracion
 
@@ -2446,8 +2415,8 @@ def render_stage_opex():
             with cols[1]:
                 ano1 = st.number_input(
                     f"Año 1 - {key}",
-                    min_value=0, step=100, label_visibility="collapsed",
-                    key=f"opex_{key}_ano1"
+                    value=gf_data["ano1"],
+                    min_value=0, step=100, label_visibility="collapsed"
                 )
                 gf_data["ano1"] = ano1
 
@@ -2457,9 +2426,9 @@ def render_stage_opex():
                 with col:
                     inc = st.number_input(
                         f"Inc A{idx+2} - {key}",
+                        value=float(incrementos[idx]),
                         min_value=0.0, max_value=100.0, step=0.5, format="%.1f",
-                        label_visibility="collapsed",
-                        key=f"opex_{key}_inc{idx+2}"
+                        label_visibility="collapsed"
                     )
                     incrementos[idx] = inc
             gf_data["incrementos"] = incrementos
@@ -2885,9 +2854,9 @@ def render_stage_ingresos():
             with cols[1]:
                 precio = st.number_input(
                     f"Precio {key}",
+                    value=float(st.session_state.ingresos[key]["precio"]),
                     min_value=0.0, step=1.0, format="%.2f",
-                    label_visibility="collapsed",
-                    key=f"ing_{key}_precio"
+                    label_visibility="collapsed"
                 )
                 st.session_state.ingresos[key]["precio"] = precio
 
@@ -2941,22 +2910,25 @@ def render_stage_ingresos():
         with cols[1]:
             cv_prod_a = st.number_input(
                 "Cv Prod A",
+                value=float(st.session_state.ingresos["tipo_a"]["cv_produccion"]),
                 min_value=0.0, max_value=100.0, step=0.5, format="%.1f",
-                label_visibility="collapsed", key="ing_tipo_a_cv_prod"
+                label_visibility="collapsed"
             )
             st.session_state.ingresos["tipo_a"]["cv_produccion"] = cv_prod_a
         with cols[2]:
             cv_prod_b = st.number_input(
                 "Cv Prod B",
+                value=float(st.session_state.ingresos["tipo_b"]["cv_produccion"]),
                 min_value=0.0, max_value=100.0, step=0.5, format="%.1f",
-                label_visibility="collapsed", key="ing_tipo_b_cv_prod"
+                label_visibility="collapsed"
             )
             st.session_state.ingresos["tipo_b"]["cv_produccion"] = cv_prod_b
         with cols[3]:
             cv_prod_c = st.number_input(
                 "Cv Prod C",
+                value=float(st.session_state.ingresos["tipo_c"]["cv_produccion"]),
                 min_value=0.0, max_value=100.0, step=0.5, format="%.1f",
-                label_visibility="collapsed", key="ing_tipo_c_cv_prod"
+                label_visibility="collapsed"
             )
             st.session_state.ingresos["tipo_c"]["cv_produccion"] = cv_prod_c
 
@@ -2968,22 +2940,25 @@ def render_stage_ingresos():
         with cols[1]:
             cv_adq_a = st.number_input(
                 "Cv Adq A",
+                value=float(st.session_state.ingresos["tipo_a"]["cv_adquisicion"]),
                 min_value=0.0, max_value=100.0, step=0.5, format="%.1f",
-                label_visibility="collapsed", key="ing_tipo_a_cv_adq"
+                label_visibility="collapsed"
             )
             st.session_state.ingresos["tipo_a"]["cv_adquisicion"] = cv_adq_a
         with cols[2]:
             cv_adq_b = st.number_input(
                 "Cv Adq B",
+                value=float(st.session_state.ingresos["tipo_b"]["cv_adquisicion"]),
                 min_value=0.0, max_value=100.0, step=0.5, format="%.1f",
-                label_visibility="collapsed", key="ing_tipo_b_cv_adq"
+                label_visibility="collapsed"
             )
             st.session_state.ingresos["tipo_b"]["cv_adquisicion"] = cv_adq_b
         with cols[3]:
             cv_adq_c = st.number_input(
                 "Cv Adq C",
+                value=float(st.session_state.ingresos["tipo_c"]["cv_adquisicion"]),
                 min_value=0.0, max_value=100.0, step=0.5, format="%.1f",
-                label_visibility="collapsed", key="ing_tipo_c_cv_adq"
+                label_visibility="collapsed"
             )
             st.session_state.ingresos["tipo_c"]["cv_adquisicion"] = cv_adq_c
 
@@ -2995,22 +2970,25 @@ def render_stage_ingresos():
         with cols[1]:
             com_a = st.number_input(
                 "Com A",
+                value=float(st.session_state.ingresos["tipo_a"]["comisiones"]),
                 min_value=0.0, max_value=100.0, step=0.5, format="%.1f",
-                label_visibility="collapsed", key="ing_tipo_a_comisiones"
+                label_visibility="collapsed"
             )
             st.session_state.ingresos["tipo_a"]["comisiones"] = com_a
         with cols[2]:
             com_b = st.number_input(
                 "Com B",
+                value=float(st.session_state.ingresos["tipo_b"]["comisiones"]),
                 min_value=0.0, max_value=100.0, step=0.5, format="%.1f",
-                label_visibility="collapsed", key="ing_tipo_b_comisiones"
+                label_visibility="collapsed"
             )
             st.session_state.ingresos["tipo_b"]["comisiones"] = com_b
         with cols[3]:
             com_c = st.number_input(
                 "Com C",
+                value=float(st.session_state.ingresos["tipo_c"]["comisiones"]),
                 min_value=0.0, max_value=100.0, step=0.5, format="%.1f",
-                label_visibility="collapsed", key="ing_tipo_c_comisiones"
+                label_visibility="collapsed"
             )
             st.session_state.ingresos["tipo_c"]["comisiones"] = com_c
 
