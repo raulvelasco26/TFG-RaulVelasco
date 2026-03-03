@@ -12,6 +12,14 @@ from components.financial_engine import (
     FinancialEngine, Inversion, ProyectoTrabajoActivoPropio, Prestamo,
     Empleado, LineaVenta, GastoFijo, TaxConfig
 )
+from utils.prompts import (
+    SYSTEM_PROMPT_PROYECTO, EXTRACTION_PROMPT_PROYECTO,
+    SYSTEM_PROMPT_CAPEX, EXTRACTION_PROMPT_CAPEX,
+    SYSTEM_PROMPT_FINANCIACION, EXTRACTION_PROMPT_FINANCIACION,
+    SYSTEM_PROMPT_OPEX, EXTRACTION_PROMPT_OPEX,
+    SYSTEM_PROMPT_INGRESOS, EXTRACTION_PROMPT_INGRESOS,
+    SYSTEM_PROMPT_ANALISIS_BASE,
+)
 
 # =============================================================================
 # CONFIGURACIÓN DE LA PÁGINA
@@ -110,6 +118,11 @@ def init_session_state():
         st.session_state.proyecto = {}
 
     # === CAPEX - Inversiones ===
+    _capex_keys = [
+        "investigacion", "patentes", "aplicaciones", "otros_intangibles",
+        "terrenos", "instalaciones", "maquinaria", "equipos",
+        "mobiliario", "vehiculos", "otros_materiales", "fianzas",
+    ]
     if "capex" not in st.session_state:
         st.session_state.capex = {
             # Intangibles
@@ -493,34 +506,366 @@ def render_sidebar():
             })
 
 # =============================================================================
+# LLM — cliente cacheado y helpers de extracción
+# =============================================================================
+
+@st.cache_resource
+def _get_llm_client():
+    """Devuelve un LLMClient cacheado (se crea una sola vez por sesión de servidor)."""
+    from components.llm_client import LLMClient
+    return LLMClient()
+
+
+def _build_analisis_system_prompt() -> str:
+    """Construye el system prompt del análisis con los resultados financieros reales."""
+    try:
+        import pandas as pd
+        resultados = calcular_proyecciones()
+        cr = resultados['cuenta_resultados']
+        ft = resultados['flujo_tesoreria']
+        bal = resultados['balance']
+        ratios = resultados['ratios']
+        ratios_glob = ratios.get('globales', {})
+
+        def suma_ano(df, col, ano):
+            return sum(df[col][(ano - 1) * 12: ano * 12])
+
+        def fmt_n(v):
+            return f"{v:,.0f} €" if v is not None else "N/A"
+
+        def fmt_p(v):
+            return f"{v * 100:.1f}%" if v is not None else "N/A"
+
+        proyecto = st.session_state.proyecto
+        lineas = []
+        lineas.append(f"Proyecto: {proyecto.get('nombre', '—')} | Sector: {proyecto.get('sector', '—')}")
+        lineas.append("")
+        lineas.append("=== CUENTA DE RESULTADOS (anual) ===")
+        lineas.append(f"{'':20} {'Año 1':>12} {'Año 2':>12} {'Año 3':>12} {'Año 4':>12} {'Año 5':>12}")
+        for label, col in [
+            ("Ingresos", "ingresos"),
+            ("Margen comercial", "margen_comercial"),
+            ("EBITDA", "ebitda"),
+            ("Resultado neto", "resultado"),
+        ]:
+            vals = [suma_ano(cr, col, a) for a in range(1, 6)]
+            lineas.append(f"{label:20} " + " ".join(f"{fmt_n(v):>12}" for v in vals))
+
+        lineas.append("")
+        lineas.append("=== MÁRGENES (% sobre ingresos) ===")
+        for label, col in [("Margen comercial", "margen_comercial"), ("EBITDA", "ebitda"), ("Resultado neto", "resultado")]:
+            row = []
+            for a in range(1, 6):
+                ing = suma_ano(cr, "ingresos", a)
+                val = suma_ano(cr, col, a)
+                row.append(fmt_p(val / ing) if ing > 0 else "  N/A")
+            lineas.append(f"{label:20} " + " ".join(f"{v:>12}" for v in row))
+
+        lineas.append("")
+        lineas.append("=== CASH FLOW NETO (anual) ===")
+        cf_vals = [suma_ano(ft, "cf_neto", a) for a in range(1, 6)]
+        lineas.append("CF Neto            " + " ".join(f"{fmt_n(v):>12}" for v in cf_vals))
+
+        burn = suma_ano(ft, "cf_neto", 1) / 12
+        lineas.append(f"Burn rate año 1: {fmt_n(burn)}/mes")
+
+        lineas.append("")
+        lineas.append("=== BALANCE (final año 5) ===")
+        m = 59
+        ac = bal['activo_corriente'][m]
+        pc = bal['pasivo_corriente'][m]
+        pnc = bal['pasivo_no_corriente'][m]
+        pn = bal['patrimonio_neto'][m]
+        total_p = pc + pnc
+        fm = ac - pc
+        lineas.append(f"Fondo de maniobra: {fmt_n(fm)}")
+        lineas.append(f"Liquidez (AC/PC): {(ac / pc):.2f}" if pc > 0 else "Liquidez: N/A (sin pasivo corriente)")
+        lineas.append(f"Solvencia (Activo/Pasivo): {(bal['activo_total'][m] / total_p):.2f}" if total_p > 0 else "Solvencia: N/A")
+        lineas.append(f"Apalancamiento: {(total_p / (pn + total_p) * 100):.1f}%" if (pn + total_p) > 0 else "Apalancamiento: N/A")
+
+        lineas.append("")
+        lineas.append("=== VALORACIÓN ===")
+        tir = ratios.get('tir')
+        van = ratios.get('van')
+        lineas.append(f"TIR: {fmt_p(tir) if tir else 'N/A'}")
+        lineas.append(f"VAN (tasa 10%): {fmt_n(van) if van else 'N/A'}")
+
+        mes_pm = ratios_glob.get('mes_punto_equilibrio')
+        lineas.append(f"Mes punto muerto: {f'Mes {mes_pm}' if mes_pm else 'No alcanzado en 5 años'}")
+        deficit_max = ratios_glob.get('deficit_maximo', 0)
+        if deficit_max > 0:
+            lineas.append(f"Déficit máximo tesorería: {fmt_n(deficit_max)} (mes {ratios_glob.get('mes_deficit_maximo', '?')})")
+
+        datos = "\n".join(lineas)
+    except Exception as e:
+        datos = f"(No se pudieron calcular las proyecciones: {e})"
+
+    return SYSTEM_PROMPT_ANALISIS_BASE.format(datos_financieros=datos)
+
+
+def _get_system_prompt(stage: str) -> str:
+    """Devuelve el prompt de sistema apropiado para cada etapa."""
+    from utils.prompts import SYSTEM_PROMPT
+    prompts = {
+        "proyecto": SYSTEM_PROMPT_PROYECTO,
+        "capex": SYSTEM_PROMPT_CAPEX,
+        "financiacion": SYSTEM_PROMPT_FINANCIACION,
+        "opex": SYSTEM_PROMPT_OPEX,
+        "ingresos": SYSTEM_PROMPT_INGRESOS,
+    }
+    if stage == "analisis":
+        return _build_analisis_system_prompt()
+    return prompts.get(stage, SYSTEM_PROMPT)
+
+
+def _extract_and_save_proyecto():
+    """
+    Llama al LLM con un prompt de extracción para parsear los datos
+    del proyecto de la conversación y actualiza st.session_state.proyecto.
+    """
+    # Construir texto de la conversación de esta etapa
+    conversation = "\n".join([
+        f"{m['role'].upper()}: {m['content']}"
+        for m in st.session_state.messages
+        if m["role"] in ("user", "assistant") and m.get("stage") == "proyecto"
+    ])
+    if not conversation:
+        return
+
+    client = _get_llm_client()
+    data = client.extract_json(
+        messages=[{"role": "user", "content": conversation}],
+        system=EXTRACTION_PROMPT_PROYECTO,
+    )
+
+    # Actualizar solo los campos que el LLM haya extraído (no sobreescribir con null)
+    for field in ("nombre", "sector", "equipo", "fecha_inicio"):
+        value = data.get(field)
+        if value and value != "null":
+            st.session_state.proyecto[field] = value
+
+
+def _extract_and_save_capex():
+    """Extrae importes de inversión de la conversación y actualiza st.session_state.capex."""
+    conversation = "\n".join([
+        f"{m['role'].upper()}: {m['content']}"
+        for m in st.session_state.messages
+        if m["role"] in ("user", "assistant") and m.get("stage") == "capex"
+    ])
+    if not conversation:
+        return
+
+    client = _get_llm_client()
+    data = client.extract_json(
+        messages=[{"role": "user", "content": conversation}],
+        system=EXTRACTION_PROMPT_CAPEX,
+    )
+
+    capex_keys = [
+        "investigacion", "patentes", "aplicaciones", "otros_intangibles",
+        "terrenos", "instalaciones", "maquinaria", "equipos",
+        "mobiliario", "vehiculos", "otros_materiales", "fianzas",
+    ]
+    for key in capex_keys:
+        value = data.get(key)
+        if value is not None and isinstance(value, (int, float)) and value > 0:
+            st.session_state.capex[key]["importe"] = int(value)
+
+
+def _extract_and_save_financiacion():
+    """Extrae datos de financiación de la conversación y actualiza st.session_state.financiacion."""
+    conversation = "\n".join([
+        f"{m['role'].upper()}: {m['content']}"
+        for m in st.session_state.messages
+        if m["role"] in ("user", "assistant") and m.get("stage") == "financiacion"
+    ])
+    if not conversation:
+        return
+
+    client = _get_llm_client()
+    data = client.extract_json(
+        messages=[{"role": "user", "content": conversation}],
+        system=EXTRACTION_PROMPT_FINANCIACION,
+    )
+
+    def _num(key):
+        v = data.get(key)
+        return v if isinstance(v, (int, float)) and v > 0 else None
+
+    fin = st.session_state.financiacion
+
+    if _num("capital_inicial_importe"):
+        v = int(_num("capital_inicial_importe"))
+        fin["capital_inicial"]["importe"] = v
+        st.session_state["cap_ini_importe"] = v
+    if _num("capital_inicial_acciones"):
+        v = int(_num("capital_inicial_acciones"))
+        fin["capital_inicial"]["acciones"] = v
+        st.session_state["cap_ini_acciones"] = v
+    if _num("ampliacion_mes"):
+        v = int(_num("ampliacion_mes"))
+        fin["ampliacion"]["mes"] = v
+        st.session_state["amp_mes"] = v
+    if _num("ampliacion_importe"):
+        v = int(_num("ampliacion_importe"))
+        fin["ampliacion"]["importe"] = v
+        st.session_state["amp_importe"] = v
+    if _num("ampliacion_valoracion_premoney"):
+        v = int(_num("ampliacion_valoracion_premoney"))
+        fin["ampliacion"]["valoracion_premoney"] = v
+        st.session_state["amp_valoracion"] = v
+    for p in ("prestamo1", "prestamo2"):
+        if _num(f"{p}_importe"):
+            fin[p]["importe"] = int(_num(f"{p}_importe"))
+        if _num(f"{p}_interes"):
+            fin[p]["interes"] = float(_num(f"{p}_interes"))
+        if _num(f"{p}_meses_amortizacion"):
+            fin[p]["meses_amortizacion"] = int(_num(f"{p}_meses_amortizacion"))
+        if _num(f"{p}_meses_carencia"):
+            fin[p]["meses_carencia"] = int(_num(f"{p}_meses_carencia"))
+        if _num(f"{p}_mes_inicio"):
+            fin[p]["mes_inicio"] = int(_num(f"{p}_mes_inicio"))
+    if _num("poliza_interes"):
+        fin["poliza_interes"] = float(_num("poliza_interes"))
+
+
+def _extract_and_save_opex():
+    """Extrae gastos fijos de la conversación y actualiza st.session_state.opex."""
+    conversation = "\n".join([
+        f"{m['role'].upper()}: {m['content']}"
+        for m in st.session_state.messages
+        if m["role"] in ("user", "assistant") and m.get("stage") == "opex"
+    ])
+    if not conversation:
+        return
+
+    client = _get_llm_client()
+    data = client.extract_json(
+        messages=[{"role": "user", "content": conversation}],
+        system=EXTRACTION_PROMPT_OPEX,
+    )
+
+    opex_keys = ["alquileres", "suministros", "rentings", "reparaciones",
+                 "servicios_prof", "transportes", "bancarios_seguros", "marketing", "tributos"]
+    for key in opex_keys:
+        gf = st.session_state.opex["gastos_fijos"][key]
+        # Importe año 1
+        value = data.get(key)
+        if value is not None and isinstance(value, (int, float)) and value > 0:
+            gf["ano1"] = int(value)
+        # Incrementos por año
+        for yr in range(2, 6):
+            inc_val = data.get(f"{key}_inc{yr}")
+            if inc_val is not None and isinstance(inc_val, (int, float)):
+                gf["incrementos"][yr - 2] = float(inc_val)
+
+
+def _extract_and_save_ingresos():
+    """Extrae datos de ingresos de la conversación y actualiza st.session_state.ingresos."""
+    conversation = "\n".join([
+        f"{m['role'].upper()}: {m['content']}"
+        for m in st.session_state.messages
+        if m["role"] in ("user", "assistant") and m.get("stage") == "ingresos"
+    ])
+    if not conversation:
+        return
+
+    client = _get_llm_client()
+    data = client.extract_json(
+        messages=[{"role": "user", "content": conversation}],
+        system=EXTRACTION_PROMPT_INGRESOS,
+    )
+
+    for key in ("tipo_a", "tipo_b", "tipo_c"):
+        ing = st.session_state.ingresos[key]
+
+        nombre = data.get(f"{key}_nombre")
+        if nombre and isinstance(nombre, str):
+            ing["nombre"] = nombre
+
+        sam = data.get(f"{key}_sam")
+        if sam is not None and isinstance(sam, (int, float)) and sam > 0:
+            ing["sam"] = int(sam)
+
+        precio = data.get(f"{key}_precio")
+        if precio is not None and isinstance(precio, (int, float)) and precio > 0:
+            ing["precio"] = float(precio)
+
+        for yr in range(1, 6):
+            som_val = data.get(f"{key}_som{yr}")
+            if som_val is not None and isinstance(som_val, (int, float)):
+                ing["som"][yr - 1] = float(som_val)
+
+        for yr in range(2, 6):
+            inc_val = data.get(f"{key}_inc{yr}")
+            if inc_val is not None and isinstance(inc_val, (int, float)):
+                ing["incremento"][yr - 2] = float(inc_val)
+
+        cv_prod = data.get(f"{key}_cv_prod")
+        if cv_prod is not None and isinstance(cv_prod, (int, float)):
+            ing["cv_produccion"] = float(cv_prod)
+
+        cv_adq = data.get(f"{key}_cv_adq")
+        if cv_adq is not None and isinstance(cv_adq, (int, float)):
+            ing["cv_adquisicion"] = float(cv_adq)
+
+        comisiones = data.get(f"{key}_comisiones")
+        if comisiones is not None and isinstance(comisiones, (int, float)):
+            ing["comisiones"] = float(comisiones)
+
+
+# =============================================================================
 # COMPONENTE: ÁREA DE CHAT
 # =============================================================================
-def render_chat_interface():
-    """Renderiza la interfaz de chat con el asistente"""
+def render_chat_interface(stage: str = ""):
+    """Renderiza la interfaz de chat con el asistente."""
 
-    # Contenedor para el historial de mensajes
-    chat_container = st.container()
-
-    with chat_container:
-        # Mostrar mensajes existentes
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
+    # Mostrar historial de mensajes
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
     # Input del usuario
     if prompt := st.chat_input("Escribe tu mensaje aquí..."):
-        # Añadir mensaje del usuario
-        st.session_state.messages.append({"role": "user", "content": prompt})
+        st.session_state.messages.append({"role": "user", "content": prompt, "stage": stage})
 
-        # Mostrar mensaje del usuario
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # Respuesta del asistente (placeholder - será reemplazado por LLM)
         with st.chat_message("assistant"):
-            response = f"[Respuesta del asistente IA - En desarrollo]\n\nHas escrito: *{prompt}*\n\nEsta funcionalidad se conectará con {Config.MODEL_NAME} para proporcionar asistencia contextualizada."
+            client = _get_llm_client()
+
+            if not client.is_configured:
+                response = "⚠️ El asistente IA no está configurado. Añade tu API key en el archivo `.env`."
+            else:
+                # Construir historial para el LLM (solo role y content)
+                llm_messages = [
+                    {"role": m["role"], "content": m["content"]}
+                    for m in st.session_state.messages
+                    if m["role"] in ("user", "assistant")
+                ]
+                with st.spinner("Pensando..."):
+                    response = client.chat(
+                        messages=llm_messages,
+                        system=_get_system_prompt(stage),
+                    )
+
             st.markdown(response)
-            st.session_state.messages.append({"role": "assistant", "content": response})
+            st.session_state.messages.append({"role": "assistant", "content": response, "stage": stage})
+
+        # Extracción de datos tras cada intercambio (por etapa)
+        if stage == "proyecto":
+            _extract_and_save_proyecto()
+        elif stage == "capex":
+            _extract_and_save_capex()
+        elif stage == "financiacion":
+            _extract_and_save_financiacion()
+        elif stage == "opex":
+            _extract_and_save_opex()
+        elif stage == "ingresos":
+            _extract_and_save_ingresos()
+
+        st.rerun()
 
 # =============================================================================
 # FUNCIONES AUXILIARES PARA INGRESOS
@@ -530,7 +875,8 @@ def render_mercado_producto(key, titulo):
     col1, col2 = st.columns([1, 3])
     with col1:
         sam = st.number_input(
-            f"SAM {key}", value=st.session_state.ingresos[key]["sam"],
+            f"SAM {key}",
+            value=st.session_state.ingresos[key]["sam"],
             min_value=0, step=100, label_visibility="collapsed",
             help="Número total de clientes/unidades potenciales en tu mercado"
         )
@@ -538,8 +884,8 @@ def render_mercado_producto(key, titulo):
         st.caption("SAM (mercado)")
     with col2:
         nombre = st.text_input(
-            f"Nombre {key}", value=st.session_state.ingresos[key]["nombre"],
-            label_visibility="collapsed",
+            f"Nombre {key}", label_visibility="collapsed",
+            value=st.session_state.ingresos[key]["nombre"],
             placeholder="Describe tu producto/servicio..."
         )
         st.session_state.ingresos[key]["nombre"] = nombre
@@ -854,11 +1200,133 @@ def calcular_proyecciones():
 # =============================================================================
 # CONTENIDO DE CADA ETAPA
 # =============================================================================
+@st.dialog("⚙️ Configuración del Asistente IA", width="large")
+def _show_config_dialog():
+    """Popup de configuración de la API key."""
+
+    import os
+
+    st.markdown("Introduce tu API key para activar el asistente IA. Puedes obtenerla de forma gratuita en la web de cada proveedor.")
+
+    provider = st.radio(
+        "Proveedor:",
+        options=["OpenAI (GPT) — Recomendado", "Anthropic (Claude)"],
+        horizontal=True,
+    )
+
+    st.markdown("---")
+
+    if provider.startswith("OpenAI"):
+        st.markdown("Obtén tu API key en [platform.openai.com/api-keys](https://platform.openai.com/api-keys)")
+        api_key = st.text_input(
+            "API Key de OpenAI",
+            placeholder="sk-...",
+            type="password",
+            help="Empieza por 'sk-'",
+        )
+        model = st.selectbox(
+            "Modelo",
+            options=["gpt-4o", "gpt-4o-mini"],
+            help="gpt-4o es más potente, gpt-4o-mini más económico",
+        )
+        env_provider = "openai"
+        env_key_name = "OPENAI_API_KEY"
+        valid = api_key.startswith("sk-") and not api_key.startswith("sk-tu") and len(api_key) > 20
+    else:
+        st.markdown("Obtén tu API key en [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys)")
+        api_key = st.text_input(
+            "API Key de Anthropic",
+            placeholder="sk-ant-...",
+            type="password",
+            help="Empieza por 'sk-ant-'",
+        )
+        model = st.selectbox(
+            "Modelo",
+            options=["claude-sonnet-4-6", "claude-haiku-4-5-20251001", "claude-opus-4-6"],
+            help="Sonnet es el equilibrio recomendado entre potencia y coste",
+        )
+        env_provider = "anthropic"
+        env_key_name = "ANTHROPIC_API_KEY"
+        valid = api_key.startswith("sk-ant-") and len(api_key) > 20
+
+    st.markdown("---")
+
+    if st.button("💾 Guardar configuración", type="primary", use_container_width=True, disabled=not valid):
+        # Escribir el .env con los nuevos valores
+        env_path = Config.BASE_DIR / ".env"
+        env_lines = []
+        if env_path.exists():
+            # Leer el .env actual y reemplazar/añadir las claves relevantes
+            existing = env_path.read_text(encoding="utf-8").splitlines()
+            keys_to_update = {"MODEL_PROVIDER", "MODEL_NAME", env_key_name}
+            for line in existing:
+                key_in_line = line.split("=")[0].strip()
+                if key_in_line not in keys_to_update:
+                    env_lines.append(line)
+
+        env_lines += [
+            f"MODEL_PROVIDER={env_provider}",
+            f"{env_key_name}={api_key}",
+            f"MODEL_NAME={model}",
+        ]
+        env_path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
+
+        # Aplicar en memoria sin reiniciar
+        os.environ["MODEL_PROVIDER"] = env_provider
+        os.environ[env_key_name] = api_key
+        os.environ["MODEL_NAME"] = model
+
+        # Limpiar caché del cliente para que se recree con los nuevos valores
+        _get_llm_client.clear()
+
+        st.success("✅ Configuración guardada. El asistente IA ya está activo.")
+        st.rerun()
+
+    if not valid and api_key:
+        st.caption("⚠️ La API key no tiene el formato correcto.")
+
+    st.warning("🔒 Tu API key se guarda solo en el archivo `.env` local. Nunca se sube a ningún servidor.")
+
+    st.markdown("---")
+    st.markdown("**¿Quieres eliminar la configuración actual?**")
+    if st.button("🗑️ Borrar API key guardada", use_container_width=True):
+        env_path = Config.BASE_DIR / ".env"
+        if env_path.exists():
+            lines = env_path.read_text(encoding="utf-8").splitlines()
+            clean = [l for l in lines if not l.startswith(("OPENAI_API_KEY=", "ANTHROPIC_API_KEY=", "MODEL_PROVIDER=", "MODEL_NAME="))]
+            env_path.write_text("\n".join(clean) + "\n", encoding="utf-8")
+        for key in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "MODEL_PROVIDER", "MODEL_NAME"):
+            os.environ.pop(key, None)
+        _get_llm_client.clear()
+        st.success("✅ Configuración eliminada.")
+        st.rerun()
+
+
 def render_stage_inicio():
     """Pantalla de inicio y bienvenida"""
 
     st.markdown('<p class="main-header">📊 PEF AI Assistant</p>', unsafe_allow_html=True)
     st.markdown('<p class="subtitle">Tu asistente inteligente para crear Planes Económico-Financieros profesionales</p>', unsafe_allow_html=True)
+
+    # --- Estado del asistente IA ---
+    import os
+    _provider = os.getenv("MODEL_PROVIDER", "openai")
+    _key = os.getenv("OPENAI_API_KEY", "") if _provider == "openai" else os.getenv("ANTHROPIC_API_KEY", "")
+    _configured = (
+        (_key.startswith("sk-ant-") and len(_key) > 20) if _provider == "anthropic"
+        else (_key.startswith("sk-") and not _key.startswith("sk-tu") and len(_key) > 20)
+    )
+    col_status, col_btn = st.columns([3, 1])
+    with col_status:
+        if _configured:
+            st.success(f"✅ Asistente IA activo — {_provider.capitalize()} · {os.getenv('MODEL_NAME', '')}")
+        else:
+            st.error("❌ Asistente IA no configurado — Pulsa 'Configurar IA' para añadir tu API key")
+    with col_btn:
+        if st.button("⚙️ Configurar IA", use_container_width=True):
+            _show_config_dialog()
+
+    st.markdown("---")
 
     # Descripción principal
     st.markdown("""
@@ -999,23 +1467,23 @@ Puedes responderme de forma natural, por ejemplo:
         })
 
     # Renderizar chat
-    render_chat_interface()
+    render_chat_interface(stage="proyecto")
 
     st.markdown("---")
 
     # Panel de datos recopilados
     st.markdown("### 📋 Datos Recopilados")
-    st.caption("Los datos que el asistente extraiga de la conversación aparecerán aquí:")
+    st.caption("Los datos que el asistente extraiga de la conversación aparecerán aquí automáticamente:")
 
     col1, col2 = st.columns(2)
 
     with col1:
-        nombre = st.text_input("Nombre del proyecto", value=st.session_state.proyecto.get("nombre", ""), disabled=True)
-        sector = st.text_input("Sector de actividad", value=st.session_state.proyecto.get("sector", ""), disabled=True)
+        st.text_input("Nombre del proyecto", value=st.session_state.proyecto.get("nombre", ""), disabled=True)
+        st.text_input("Sector de actividad", value=st.session_state.proyecto.get("sector", ""), disabled=True)
 
     with col2:
-        equipo = st.text_input("Número de socios", value=st.session_state.proyecto.get("equipo", ""), disabled=True)
-        fecha_inicio = st.text_input("Fecha de inicio prevista", value=st.session_state.proyecto.get("fecha_inicio", ""), disabled=True)
+        st.text_input("Número de socios", value=st.session_state.proyecto.get("equipo", ""), disabled=True)
+        st.text_input("Fecha de inicio prevista", value=st.session_state.proyecto.get("fecha_inicio", ""), disabled=True)
 
     # Navegación
     st.markdown("---")
@@ -1111,7 +1579,7 @@ Por ejemplo:
                 "stage": "capex"
             })
 
-        render_chat_interface()
+        render_chat_interface(stage="capex")
 
     with tab_datos:
         st.markdown("### 📋 Inversiones Registradas")
@@ -1149,15 +1617,16 @@ Por ejemplo:
                 st.text(nombre)
             with cols[1]:
                 importe = st.number_input(
-                    f"Importe {key}", value=st.session_state.capex[key]["importe"],
-                    min_value=0, step=100, key=f"capex_{key}_importe",
+                    f"Importe {key}",
+                    value=st.session_state.capex[key]["importe"],
+                    min_value=0, step=100,
                     label_visibility="collapsed"
                 )
                 st.session_state.capex[key]["importe"] = importe
             with cols[2]:
                 anos = st.number_input(
                     f"Años {key}", value=st.session_state.capex[key]["anos"],
-                    min_value=1, max_value=50, key=f"capex_{key}_anos",
+                    min_value=1, max_value=50,
                     label_visibility="collapsed"
                 )
                 st.session_state.capex[key]["anos"] = anos
@@ -1205,15 +1674,16 @@ Por ejemplo:
                 st.text(nombre)
             with cols[1]:
                 importe = st.number_input(
-                    f"Importe {key}", value=st.session_state.capex[key]["importe"],
-                    min_value=0, step=100, key=f"capex_{key}_importe",
+                    f"Importe {key}",
+                    value=st.session_state.capex[key]["importe"],
+                    min_value=0, step=100,
                     label_visibility="collapsed"
                 )
                 st.session_state.capex[key]["importe"] = importe
             with cols[2]:
                 anos = st.number_input(
                     f"Años {key}", value=st.session_state.capex[key]["anos"],
-                    min_value=1, max_value=50, key=f"capex_{key}_anos",
+                    min_value=1, max_value=50,
                     label_visibility="collapsed"
                 )
                 st.session_state.capex[key]["anos"] = anos
@@ -1510,7 +1980,7 @@ def render_stage_financiacion():
                 "stage": "financiacion"
             })
 
-        render_chat_interface()
+        render_chat_interface(stage="financiacion")
 
     with tab_datos:
         st.markdown("### 📋 Estructura de Financiación")
@@ -1543,14 +2013,14 @@ def render_stage_financiacion():
         col1, col2, col3 = st.columns(3)
         with col1:
             cap_importe = st.number_input(
-                "Importe (€)", value=cap_data["importe"],
-                min_value=0, step=1000, key="cap_ini_importe"
+                "Importe (€)", value=cap_data.get("importe", 0), min_value=0, step=1000,
+                key="cap_ini_importe"
             )
             cap_data["importe"] = cap_importe
         with col2:
             cap_acciones = st.number_input(
-                "Acciones emitidas", value=cap_data["acciones"],
-                min_value=0, step=100, key="cap_ini_acciones"
+                "Acciones emitidas", value=cap_data.get("acciones", 0), min_value=0, step=100,
+                key="cap_ini_acciones"
             )
             cap_data["acciones"] = cap_acciones
         with col3:
@@ -1565,20 +2035,20 @@ def render_stage_financiacion():
         col1, col2, col3 = st.columns(3)
         with col1:
             amp_mes = st.number_input(
-                "Mes previsto (1-60)", value=amp_data["mes"],
-                min_value=1, max_value=60, key="amp_mes"
+                "Mes previsto (1-60)", value=amp_data.get("mes", 21), min_value=1, max_value=60,
+                key="amp_mes"
             )
             amp_data["mes"] = amp_mes
         with col2:
             amp_importe = st.number_input(
-                "Importe (€)", value=amp_data["importe"],
-                min_value=0, step=1000, key="amp_importe"
+                "Importe (€)", value=amp_data.get("importe", 0), min_value=0, step=1000,
+                key="amp_importe"
             )
             amp_data["importe"] = amp_importe
         with col3:
             amp_valoracion = st.number_input(
-                "Valoración pre-money (€)", value=amp_data["valoracion_premoney"],
-                min_value=0, step=10000, key="amp_valoracion"
+                "Valoración pre-money (€)", value=amp_data.get("valoracion_premoney", 0), min_value=0, step=10000,
+                key="amp_valoracion"
             )
             amp_data["valoracion_premoney"] = amp_valoracion
 
@@ -1886,7 +2356,7 @@ def render_stage_opex():
                 "stage": "opex"
             })
 
-        render_chat_interface()
+        render_chat_interface(stage="opex")
 
     with tab_servicios:
         st.markdown("### 🏢 Gastos Fijos por Servicios Exteriores")
@@ -1944,7 +2414,8 @@ def render_stage_opex():
             # Año 1 - editable
             with cols[1]:
                 ano1 = st.number_input(
-                    f"Año 1 - {key}", value=int(gf_data["ano1"]),
+                    f"Año 1 - {key}",
+                    value=gf_data["ano1"],
                     min_value=0, step=100, label_visibility="collapsed"
                 )
                 gf_data["ano1"] = ano1
@@ -1954,7 +2425,8 @@ def render_stage_opex():
             for idx, col in enumerate([cols[2], cols[3], cols[4], cols[5]]):
                 with col:
                     inc = st.number_input(
-                        f"Inc A{idx+2} - {key}", value=float(incrementos[idx]),
+                        f"Inc A{idx+2} - {key}",
+                        value=float(incrementos[idx]),
                         min_value=0.0, max_value=100.0, step=0.5, format="%.1f",
                         label_visibility="collapsed"
                     )
@@ -2309,7 +2781,7 @@ def render_stage_ingresos():
                 "stage": "ingresos"
             })
 
-        render_chat_interface()
+        render_chat_interface("ingresos")
 
     with tab_mercado:
         st.markdown("### 🎯 Mercado y Volumen de Ventas")
@@ -2661,8 +3133,8 @@ def render_stage_analisis():
         """, unsafe_allow_html=True)
 
     # Tabs para mostrar los diferentes análisis
-    tab_pyl, tab_cf, tab_balance, tab_analisis, tab_export = st.tabs([
-        "📈 Cuenta de Resultados", "💵 Cash Flow", "⚖️ Balance", "📊 Análisis", "📥 Exportar"
+    tab_pyl, tab_cf, tab_balance, tab_analisis, tab_chat, tab_export = st.tabs([
+        "📈 Cuenta de Resultados", "💵 Cash Flow", "⚖️ Balance", "📊 Análisis", "💬 Asistente", "📥 Exportar"
     ])
 
     # Función auxiliar para formatear números
@@ -3070,6 +3542,26 @@ def render_stage_analisis():
 
         else:
             st.info("Completa los datos de las etapas anteriores para ver el Análisis.")
+
+    with tab_chat:
+        st.markdown("### 💬 Asistente de Análisis Financiero")
+
+        if not any(m.get("stage") == "analisis" for m in st.session_state.messages):
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": (
+                    "¡Tu plan está listo! He analizado todos los datos que has introducido.\n\n"
+                    "Puedo ayudarte a:\n"
+                    "- 📊 **Interpretar** los resultados (TIR, VAN, márgenes, ratios)\n"
+                    "- ⚠️ **Identificar** puntos de atención o riesgos\n"
+                    "- 💡 **Sugerir** mejoras para aumentar la viabilidad\n"
+                    "- ❓ **Responder** cualquier pregunta sobre tus cifras\n\n"
+                    "¿Qué quieres saber sobre tu plan financiero?"
+                ),
+                "stage": "analisis"
+            })
+
+        render_chat_interface("analisis")
 
     with tab_export:
         st.markdown("### 📥 Exportar Plan Económico-Financiero")
