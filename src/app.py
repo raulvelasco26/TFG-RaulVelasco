@@ -1478,12 +1478,22 @@ Puedes responderme de forma natural, por ejemplo:
     col1, col2 = st.columns(2)
 
     with col1:
-        st.text_input("Nombre del proyecto", value=st.session_state.proyecto.get("nombre", ""), disabled=True)
-        st.text_input("Sector de actividad", value=st.session_state.proyecto.get("sector", ""), disabled=True)
+        nombre = st.text_input("Nombre del proyecto", value=st.session_state.proyecto.get("nombre", ""), key="proyecto_nombre_input")
+        if nombre != st.session_state.proyecto.get("nombre", ""):
+            st.session_state.proyecto["nombre"] = nombre
+
+        sector = st.text_input("Sector de actividad", value=st.session_state.proyecto.get("sector", ""), key="proyecto_sector_input")
+        if sector != st.session_state.proyecto.get("sector", ""):
+            st.session_state.proyecto["sector"] = sector
 
     with col2:
-        st.text_input("Número de socios", value=st.session_state.proyecto.get("equipo", ""), disabled=True)
-        st.text_input("Fecha de inicio prevista", value=st.session_state.proyecto.get("fecha_inicio", ""), disabled=True)
+        equipo = st.text_input("Número de socios", value=st.session_state.proyecto.get("equipo", ""), key="proyecto_equipo_input")
+        if equipo != st.session_state.proyecto.get("equipo", ""):
+            st.session_state.proyecto["equipo"] = equipo
+
+        fecha = st.text_input("Fecha de inicio prevista", value=st.session_state.proyecto.get("fecha_inicio", ""), key="proyecto_fecha_input")
+        if fecha != st.session_state.proyecto.get("fecha_inicio", ""):
+            st.session_state.proyecto["fecha_inicio"] = fecha
 
     # Navegación
     st.markdown("---")
