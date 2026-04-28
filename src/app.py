@@ -8,6 +8,8 @@ Universitat Pompeu Fabra - TecnoCampus
 """
 import streamlit as st
 from PIL import Image
+import plotly.express as px
+import plotly.graph_objects as go
 from config import Config
 from components.financial_engine import (
     FinancialEngine, Inversion, ProyectoTrabajoActivoPropio, Prestamo,
@@ -3383,6 +3385,56 @@ def render_stage_analisis():
             df_pyl = pd.DataFrame(pyl_data)
             st.dataframe(df_pyl, use_container_width=True, hide_index=True)
 
+            with st.expander("Ver gráfico"):
+                # ── Chart #5: Waterfall de la Cuenta de Resultados ──
+                try:
+                    st.markdown("#### 📊 Cascada de la Cuenta de Resultados")
+                    ano_wf = st.selectbox("Selecciona el año para la cascada:", [1, 2, 3, 4, 5],
+                                          key="waterfall_ano_sel", format_func=lambda x: f"Año {x}")
+                    wf_labels = [
+                        "Ingresos", "Costes Variables", "Margen Comercial",
+                        "Gastos Fijos", "Nóminas", "EBITDA",
+                        "Amortizaciones", "Gastos Financieros", "Impuestos", "Resultado Neto"
+                    ]
+                    ing_wf = suma_ano(cuenta_resultados, 'ingresos', ano_wf) + suma_ano(cuenta_resultados, 'ingresos_trabajo_propio_activo', ano_wf)
+                    cv_wf = -suma_ano(cuenta_resultados, 'costes_variables', ano_wf)
+                    mc_wf = suma_ano(cuenta_resultados, 'margen_comercial', ano_wf)
+                    gf_wf = -suma_ano(cuenta_resultados, 'gastos_fijos_servicios', ano_wf)
+                    nom_wf = -suma_ano(cuenta_resultados, 'gastos_nomina', ano_wf)
+                    ebitda_wf = suma_ano(cuenta_resultados, 'ebitda', ano_wf)
+                    amort_wf = -suma_ano(cuenta_resultados, 'amortizaciones', ano_wf)
+                    imput_sub_wf = suma_ano(cuenta_resultados, 'imputacion_subvenciones', ano_wf)
+                    gf_fin_wf = -suma_ano(cuenta_resultados, 'gastos_financieros', ano_wf)
+                    imp_wf = -suma_ano(cuenta_resultados, 'impuesto_sociedades', ano_wf)
+                    res_wf = suma_ano(cuenta_resultados, 'resultado', ano_wf)
+
+                    wf_values = [ing_wf, cv_wf, mc_wf, gf_wf, nom_wf, ebitda_wf,
+                                 amort_wf + imput_sub_wf, gf_fin_wf, imp_wf, res_wf]
+                    wf_measure = ["absolute", "relative", "total", "relative", "relative", "total",
+                                  "relative", "relative", "relative", "total"]
+
+                    fig_wf = go.Figure(go.Waterfall(
+                        x=wf_labels,
+                        y=wf_values,
+                        measure=wf_measure,
+                        textposition="outside",
+                        text=[f"{v:,.0f} €" for v in wf_values],
+                        increasing={"marker": {"color": "#2E7D32"}},
+                        decreasing={"marker": {"color": "#C62828"}},
+                        totals={"marker": {"color": "#1565C0"}},
+                    ))
+                    fig_wf.update_layout(
+                        title=f"Cascada de la Cuenta de Resultados — Año {ano_wf}",
+                        template="plotly_white",
+                        yaxis_title="Euros (€)",
+                        yaxis_tickformat=",.",
+                        showlegend=False,
+                        height=450,
+                    )
+                    st.plotly_chart(fig_wf, use_container_width=True)
+                except Exception:
+                    st.caption("⚠️ No se pudo generar el gráfico de cascada.")
+
             # Detalle mensual
             with st.expander("Ver detalle mensual"):
                 ano_pyl = st.selectbox("Año", [1, 2, 3, 4, 5], key="pyl_ano_sel", format_func=lambda x: f"Año {x}")
@@ -3487,6 +3539,29 @@ def render_stage_analisis():
             df_cf = pd.DataFrame(cf_data)
             st.dataframe(df_cf, use_container_width=True, hide_index=True)
 
+            with st.expander("Ver gráfico"):
+                # ── Chart #1: Evolución de Tesorería Acumulada ──
+                try:
+                    tesoreria_vals = list(flujo_tesoreria['tesoreria_disponible'])
+                    meses = list(range(1, len(tesoreria_vals) + 1))
+                    fig_tes = go.Figure()
+                    fig_tes.add_trace(go.Scatter(
+                        x=meses, y=tesoreria_vals, fill='tozeroy',
+                        fillcolor='rgba(46,125,50,0.15)', line=dict(color='#2E7D32', width=2),
+                        name='Tesorería Disponible', hovertemplate='Mes %{x}<br>%{y:,.0f} €<extra></extra>'
+                    ))
+                    fig_tes.add_hline(y=0, line_dash="dash", line_color="red",
+                                      annotation_text="Déficit", annotation_position="bottom right")
+                    fig_tes.update_layout(
+                        title="Evolución de la Tesorería Disponible (60 meses)",
+                        xaxis_title="Mes", yaxis_title="Euros (€)",
+                        yaxis_tickformat=",.", template="plotly_white", height=400,
+                        showlegend=False,
+                    )
+                    st.plotly_chart(fig_tes, use_container_width=True)
+                except Exception:
+                    st.caption("⚠️ No se pudo generar el gráfico de tesorería.")
+
             # Detalle mensual
             with st.expander("Ver detalle mensual"):
                 ano_cf = st.selectbox("Año", [1, 2, 3, 4, 5], key="cf_ano_sel", format_func=lambda x: f"Año {x}")
@@ -3546,7 +3621,6 @@ def render_stage_analisis():
                     cf_mes_data[meses_cf[m]] = col_vals
 
                 st.dataframe(pd.DataFrame(cf_mes_data), use_container_width=True, hide_index=True)
-
             # Métricas de tesorería
             st.markdown("---")
             st.markdown("#### Evolución de Tesorería")
@@ -3621,6 +3695,53 @@ def render_stage_analisis():
             df_balance = pd.DataFrame(balance_data)
             st.dataframe(df_balance, use_container_width=True, hide_index=True)
 
+            with st.expander("Ver gráfico"):
+                # ── Chart #4: Estructura del Balance ──
+                try:
+                    bal_anos = [0, 1, 2, 3, 4, 5]
+                    bal_anc, bal_ac, bal_pn, bal_pnc, bal_pc = [], [], [], [], []
+                    # Año 0
+                    anc_0 = inversiones_mes1_base
+                    ac_0 = max(saldo_inicial, 0)
+                    pn_0 = capital_inicial_val + subvenciones_mes1
+                    ta_0 = anc_0 + ac_0
+                    pc_0 = ta_0 - pn_0
+                    bal_anc.append(anc_0); bal_ac.append(ac_0)
+                    bal_pn.append(pn_0); bal_pnc.append(0); bal_pc.append(pc_0)
+                    for ano in range(1, 6):
+                        idx_b = ano * 12 - 1
+                        bal_anc.append(balance['activo_no_corriente'][idx_b])
+                        bal_ac.append(balance['activo_corriente'][idx_b])
+                        bal_pn.append(balance['patrimonio_neto'][idx_b])
+                        bal_pnc.append(balance['pasivo_no_corriente'][idx_b])
+                        bal_pc.append(balance['pasivo_corriente'][idx_b])
+
+                    fig_bal = go.Figure()
+                    # Activo
+                    fig_bal.add_trace(go.Bar(name='Activo No Corriente', x=[f"Año {a}" for a in bal_anos],
+                                             y=bal_anc, marker_color='#1565C0', offsetgroup='activo'))
+                    fig_bal.add_trace(go.Bar(name='Activo Corriente', x=[f"Año {a}" for a in bal_anos],
+                                             y=bal_ac, marker_color='#42A5F5', offsetgroup='activo',
+                                             base=bal_anc))
+                    # PN + Pasivo
+                    fig_bal.add_trace(go.Bar(name='Patrimonio Neto', x=[f"Año {a}" for a in bal_anos],
+                                             y=bal_pn, marker_color='#2E7D32', offsetgroup='pasivo'))
+                    fig_bal.add_trace(go.Bar(name='Pasivo No Corriente', x=[f"Año {a}" for a in bal_anos],
+                                             y=bal_pnc, marker_color='#FF8F00', offsetgroup='pasivo',
+                                             base=bal_pn))
+                    fig_bal.add_trace(go.Bar(name='Pasivo Corriente', x=[f"Año {a}" for a in bal_anos],
+                                             y=bal_pc, marker_color='#EF5350', offsetgroup='pasivo',
+                                             base=[pn + pnc for pn, pnc in zip(bal_pn, bal_pnc)]))
+                    fig_bal.update_layout(
+                        title="Estructura del Balance por Año",
+                        template="plotly_white", barmode='group',
+                        yaxis_title="Euros (€)", yaxis_tickformat=",.",
+                        height=450, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    )
+                    st.plotly_chart(fig_bal, use_container_width=True)
+                except Exception:
+                    st.caption("⚠️ No se pudo generar el gráfico del balance.")
+
             # Detalle mensual
             with st.expander("Ver detalle mensual"):
                 ano_bal = st.selectbox("Año", [1, 2, 3, 4, 5], key="bal_ano_sel", format_func=lambda x: f"Año {x}")
@@ -3680,6 +3801,42 @@ def render_stage_analisis():
         st.caption("Estructura según hoja ANALISIS del Excel")
 
         if hay_datos:
+            # ── Chart #2: Ingresos vs Gastos Totales ──
+            try:
+                anos_list = [f"Año {a}" for a in range(1, 6)]
+                ing_anual = [suma_ano(cuenta_resultados, 'ingresos', a) + suma_ano(cuenta_resultados, 'ingresos_trabajo_propio_activo', a) for a in range(1, 6)]
+                gastos_anual = [
+                    suma_ano(cuenta_resultados, 'costes_variables', a) +
+                    suma_ano(cuenta_resultados, 'gastos_fijos_servicios', a) +
+                    suma_ano(cuenta_resultados, 'gastos_nomina', a) +
+                    suma_ano(cuenta_resultados, 'amortizaciones', a) +
+                    suma_ano(cuenta_resultados, 'gastos_financieros', a)
+                    for a in range(1, 6)
+                ]
+                res_anual = [suma_ano(cuenta_resultados, 'resultado', a) for a in range(1, 6)]
+
+                fig_ig = go.Figure()
+                fig_ig.add_trace(go.Bar(name='Ingresos', x=anos_list, y=ing_anual,
+                                        marker_color='#2E7D32', text=[f"{v:,.0f} €" for v in ing_anual],
+                                        textposition='outside'))
+                fig_ig.add_trace(go.Bar(name='Gastos Totales', x=anos_list, y=gastos_anual,
+                                        marker_color='#C62828', text=[f"{v:,.0f} €" for v in gastos_anual],
+                                        textposition='outside'))
+                fig_ig.add_trace(go.Scatter(name='Resultado Neto', x=anos_list, y=res_anual,
+                                            mode='lines+markers', line=dict(color='#1565C0', width=3, dash='dot'),
+                                            marker=dict(size=8)))
+                fig_ig.update_layout(
+                    title="Ingresos vs Gastos Totales por Año",
+                    template="plotly_white", barmode='group',
+                    yaxis_title="Euros (€)", yaxis_tickformat=",.",
+                    height=450, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                )
+                st.plotly_chart(fig_ig, use_container_width=True)
+            except Exception:
+                st.caption("⚠️ No se pudo generar el gráfico de Ingresos vs Gastos.")
+
+            st.markdown("---")
+
             # Análisis de tesorería
             st.markdown("#### 💵 Análisis del Cash Flow")
             col1, col2, col3 = st.columns(3)
@@ -3732,6 +3889,139 @@ def render_stage_analisis():
 
             df_margenes = pd.DataFrame(margenes_data)
             st.dataframe(df_margenes, use_container_width=True, hide_index=True)
+
+            # ── Chart #3: Evolución de Márgenes ──
+            try:
+                m_comercial_list, m_ebitda_list, m_neto_list = [], [], []
+                for ano in range(1, 6):
+                    ingresos_m = suma_ano(cuenta_resultados, 'ingresos', ano)
+                    if ingresos_m > 0:
+                        m_comercial_list.append(suma_ano(cuenta_resultados, 'margen_comercial', ano) / ingresos_m * 100)
+                        m_ebitda_list.append(suma_ano(cuenta_resultados, 'ebitda', ano) / ingresos_m * 100)
+                        m_neto_list.append(suma_ano(cuenta_resultados, 'resultado', ano) / ingresos_m * 100)
+                    else:
+                        m_comercial_list.append(0); m_ebitda_list.append(0); m_neto_list.append(0)
+
+                anos_m = [f"Año {a}" for a in range(1, 6)]
+                fig_m = go.Figure()
+                fig_m.add_trace(go.Scatter(name='Margen Comercial %', x=anos_m, y=m_comercial_list,
+                                           mode='lines+markers', line=dict(color='#2E7D32', width=2.5),
+                                           marker=dict(size=8)))
+                fig_m.add_trace(go.Scatter(name='Margen EBITDA %', x=anos_m, y=m_ebitda_list,
+                                           mode='lines+markers', line=dict(color='#1565C0', width=2.5),
+                                           marker=dict(size=8)))
+                fig_m.add_trace(go.Scatter(name='Margen Neto %', x=anos_m, y=m_neto_list,
+                                           mode='lines+markers', line=dict(color='#FF8F00', width=2.5),
+                                           marker=dict(size=8)))
+                # Reference zones
+                fig_m.add_hrect(y0=20, y1=100, fillcolor="green", opacity=0.05, line_width=0,
+                                annotation_text=">20% Bueno", annotation_position="top left")
+                fig_m.add_hrect(y0=10, y1=20, fillcolor="orange", opacity=0.05, line_width=0,
+                                annotation_text="10-20% Aceptable", annotation_position="top left")
+                fig_m.add_hline(y=0, line_dash="dash", line_color="grey", opacity=0.5)
+                fig_m.update_layout(
+                    title="Evolución de los Márgenes por Año",
+                    template="plotly_white", yaxis_title="Porcentaje (%)",
+                    yaxis_ticksuffix="%", height=450,
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                )
+                st.plotly_chart(fig_m, use_container_width=True)
+            except Exception:
+                st.caption("⚠️ No se pudo generar el gráfico de márgenes.")
+
+            st.markdown("---")
+
+            # ── Chart #6: Composición de Costes (Donut) ──
+            try:
+                st.markdown("#### 🍩 Composición de Costes")
+                ano_cost = st.selectbox("Selecciona el año:", [1, 2, 3, 4, 5],
+                                        key="costes_ano_sel", format_func=lambda x: f"Año {x}")
+                cv_cost = suma_ano(cuenta_resultados, 'costes_variables', ano_cost)
+                gf_cost = suma_ano(cuenta_resultados, 'gastos_fijos_servicios', ano_cost)
+                nom_cost = suma_ano(cuenta_resultados, 'gastos_nomina', ano_cost)
+                amort_cost = suma_ano(cuenta_resultados, 'amortizaciones', ano_cost)
+                fin_cost = suma_ano(cuenta_resultados, 'gastos_financieros', ano_cost)
+                is_cost = suma_ano(cuenta_resultados, 'impuesto_sociedades', ano_cost)
+
+                cost_labels = ['Costes Variables', 'Gastos Fijos', 'Nóminas', 'Amortizaciones', 'Gastos Financieros', 'Impuestos']
+                cost_values = [cv_cost, gf_cost, nom_cost, amort_cost, fin_cost, is_cost]
+                # Filter out zero values
+                cost_labels_f = [l for l, v in zip(cost_labels, cost_values) if v > 0]
+                cost_values_f = [v for v in cost_values if v > 0]
+                cost_colors = ['#EF5350', '#FF8F00', '#AB47BC', '#5C6BC0', '#26A69A', '#78909C']
+
+                fig_donut = px.pie(names=cost_labels_f, values=cost_values_f, hole=0.5,
+                                  color_discrete_sequence=cost_colors[:len(cost_labels_f)])
+                fig_donut.update_traces(textposition='inside', textinfo='percent+label+value',
+                                        texttemplate='%{label}<br>%{value:,.0f} € (%{percent})')
+                fig_donut.update_layout(
+                    title=f"Composición de Costes — Año {ano_cost}",
+                    template="plotly_white", height=450,
+                    showlegend=True,
+                )
+                st.plotly_chart(fig_donut, use_container_width=True)
+            except Exception:
+                st.caption("⚠️ No se pudo generar el gráfico de composición de costes.")
+
+            st.markdown("---")
+
+            # ── Chart #8: Ingresos por Línea de Producto ──
+            try:
+                st.markdown("#### 📦 Ingresos por Línea de Producto")
+                # Check if ventas data has per-linea columns
+                ventas_cols = [c for c in cuenta_resultados.columns if c.startswith('ventas_') and c != 'ventas_totales']
+                if not ventas_cols:
+                    # Try to get from df_ventas via the engine
+                    # Fallback: use lineas_venta from session state
+                    lineas_ingresos = st.session_state.get('ingresos', {})
+                    productos_keys = [k for k in ['tipo_a', 'tipo_b', 'tipo_c'] if k in lineas_ingresos]
+                    if productos_keys:
+                        anos_prod = [f"Año {a}" for a in range(1, 6)]
+                        fig_prod = go.Figure()
+                        prod_colors = {'tipo_a': '#1565C0', 'tipo_b': '#2E7D32', 'tipo_c': '#FF8F00'}
+                        prod_names = {'tipo_a': 'Producto A', 'tipo_b': 'Producto B', 'tipo_c': 'Producto C'}
+                        for key in productos_keys:
+                            prod_data = lineas_ingresos[key]
+                            vals = []
+                            for ano in range(5):
+                                sam = prod_data.get('sam', 0)
+                                som = prod_data['som'][ano] if ano < len(prod_data.get('som', [])) else 0
+                                unidades = int(sam * som / 100)
+                                precio = prod_data.get('precio', 0)
+                                incrementos = prod_data.get('incremento', [0]*4)
+                                for i in range(ano):
+                                    if i < len(incrementos):
+                                        precio = precio * (1 + incrementos[i] / 100)
+                                vals.append(unidades * precio)
+                            fig_prod.add_trace(go.Bar(name=prod_names.get(key, key), x=anos_prod, y=vals,
+                                                      marker_color=prod_colors.get(key, '#999')))
+                        fig_prod.update_layout(
+                            title="Ingresos por Línea de Producto",
+                            template="plotly_white", barmode='stack',
+                            yaxis_title="Euros (€)", yaxis_tickformat=",.",
+                            height=400, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                        )
+                        st.plotly_chart(fig_prod, use_container_width=True)
+                    else:
+                        st.caption("No hay datos de líneas de producto disponibles.")
+                else:
+                    anos_prod = [f"Año {a}" for a in range(1, 6)]
+                    fig_prod = go.Figure()
+                    prod_colors_list = ['#1565C0', '#2E7D32', '#FF8F00', '#AB47BC', '#EF5350']
+                    for i, col in enumerate(ventas_cols):
+                        nombre = col.replace('ventas_', '')
+                        vals = [suma_ano(cuenta_resultados, col, a) for a in range(1, 6)]
+                        fig_prod.add_trace(go.Bar(name=nombre, x=anos_prod, y=vals,
+                                                  marker_color=prod_colors_list[i % len(prod_colors_list)]))
+                    fig_prod.update_layout(
+                        title="Ingresos por Línea de Producto",
+                        template="plotly_white", barmode='stack',
+                        yaxis_title="Euros (€)", yaxis_tickformat=",.",
+                        height=400, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    )
+                    st.plotly_chart(fig_prod, use_container_width=True)
+            except Exception:
+                st.caption("⚠️ No se pudo generar el gráfico de ingresos por producto.")
 
             st.markdown("---")
 
@@ -3797,6 +4087,46 @@ def render_stage_analisis():
             with col3:
                 st.metric("Ventas equilibrio", fmt(ventas_equilibrio) if ventas_equilibrio else "N/A")
 
+            # ── Chart #9: Punto Muerto / Break-Even ──
+            try:
+                meses_be = list(range(1, 13))
+                ing_acum_be, costes_acum_be = [], []
+                ing_acum, costes_acum = 0.0, 0.0
+                for m in range(12):
+                    ing_acum += cuenta_resultados['ingresos'][m]
+                    costes_fijos_m = (cuenta_resultados['gastos_fijos_servicios'][m] +
+                                      cuenta_resultados['gastos_nomina'][m] +
+                                      cuenta_resultados['amortizaciones'][m])
+                    costes_acum += cuenta_resultados['costes_variables'][m] + costes_fijos_m
+                    ing_acum_be.append(ing_acum)
+                    costes_acum_be.append(costes_acum)
+
+                fig_be = go.Figure()
+                fig_be.add_trace(go.Scatter(name='Ingresos Acumulados', x=meses_be, y=ing_acum_be,
+                                            mode='lines+markers', line=dict(color='#2E7D32', width=2.5),
+                                            fill='tonexty', fillcolor='rgba(46,125,50,0.05)'))
+                fig_be.add_trace(go.Scatter(name='Costes Acumulados', x=meses_be, y=costes_acum_be,
+                                            mode='lines+markers', line=dict(color='#C62828', width=2.5)))
+                # Find intersection
+                be_mes = None
+                for i in range(len(ing_acum_be)):
+                    if ing_acum_be[i] >= costes_acum_be[i]:
+                        be_mes = i + 1
+                        break
+                if be_mes:
+                    fig_be.add_vline(x=be_mes, line_dash="dash", line_color="#FF8F00",
+                                     annotation_text=f"Punto Muerto: Mes {be_mes}",
+                                     annotation_position="top left")
+                fig_be.update_layout(
+                    title="Análisis del Punto Muerto — Año 1",
+                    template="plotly_white", xaxis_title="Mes", yaxis_title="Euros (€)",
+                    yaxis_tickformat=".", height=400,
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                )
+                st.plotly_chart(fig_be, use_container_width=True)
+            except Exception:
+                st.caption("⚠️ No se pudo generar el gráfico de punto muerto.")
+
             st.markdown("---")
 
             # Ratios patrimoniales (año 5)
@@ -3848,6 +4178,68 @@ def render_stage_analisis():
                     st.warning(alerta)
             else:
                 st.success("✅ Todos los ratios dentro de rangos saludables")
+
+            # ── Chart #7: Ratios Financieros por Año ──
+            try:
+                st.markdown("---")
+                st.markdown("#### 📐 Evolución de Ratios Financieros")
+                ratios_por_ano = ratios.get('por_ano', {})
+                if ratios_por_ano:
+                    anos_r = [f"Año {a}" for a in sorted(ratios_por_ano.keys())]
+                    roe_vals = [ratios_por_ano.get(a, {}).get('roe', 0) * 100 for a in sorted(ratios_por_ano.keys())]
+                    roa_vals = [ratios_por_ano.get(a, {}).get('roa', 0) * 100 for a in sorted(ratios_por_ano.keys())]
+                    liq_vals = [ratios_por_ano.get(a, {}).get('ratio_liquidez', 0) for a in sorted(ratios_por_ano.keys())]
+                    sol_vals = [ratios_por_ano.get(a, {}).get('ratio_solvencia', 0) for a in sorted(ratios_por_ano.keys())]
+                    end_vals = [ratios_por_ano.get(a, {}).get('endeudamiento', 0) * 100 for a in sorted(ratios_por_ano.keys())]
+
+                    fig_r = go.Figure()
+                    fig_r.add_trace(go.Bar(name='ROE %', x=anos_r, y=roe_vals, marker_color='#2E7D32'))
+                    fig_r.add_trace(go.Bar(name='ROA %', x=anos_r, y=roa_vals, marker_color='#1565C0'))
+                    fig_r.add_trace(go.Scatter(name='Liquidez', x=anos_r, y=liq_vals,
+                                               mode='lines+markers', line=dict(color='#FF8F00', width=2.5), marker=dict(size=8)))
+                    fig_r.add_trace(go.Scatter(name='Solvencia', x=anos_r, y=sol_vals,
+                                               mode='lines+markers', line=dict(color='#AB47BC', width=2.5), marker=dict(size=8)))
+                    fig_r.add_trace(go.Scatter(name='Endeudamiento %', x=anos_r, y=end_vals,
+                                               mode='lines+markers', line=dict(color='#EF5350', width=2, dash='dot'), marker=dict(size=7)))
+                    # Reference lines
+                    fig_r.add_hline(y=1, line_dash="dash", line_color="orange", opacity=0.5,
+                                    annotation_text="Liquidez=1", annotation_position="top right")
+                    fig_r.add_hline(y=1.5, line_dash="dash", line_color="purple", opacity=0.5,
+                                    annotation_text="Solvencia=1.5", annotation_position="top right")
+                    fig_r.update_layout(
+                        title="Evolución de Ratios Financieros",
+                        template="plotly_white", barmode='group',
+                        yaxis_title="Valor (%) / Ratio", height=450,
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    )
+                    st.plotly_chart(fig_r, use_container_width=True)
+            except Exception:
+                st.caption("⚠️ No se pudo generar el gráfico de ratios financieros.")
+
+            # ── Chart #10: Evolución de la Deuda ──
+            try:
+                st.markdown("---")
+                st.markdown("#### 📉 Evolución de la Deuda")
+                deuda_lp_vals = [balance['deuda_largo_plazo'][a * 12 - 1] for a in range(1, 6)]
+                deuda_cp_vals = [balance['deuda_corto_plazo'][a * 12 - 1] for a in range(1, 6)]
+                poliza_vals = [balance['poliza_credito'][a * 12 - 1] for a in range(1, 6)]
+                anos_d = [f"Año {a}" for a in range(1, 6)]
+
+                fig_d = go.Figure()
+                fig_d.add_trace(go.Scatter(name='Deuda Largo Plazo', x=anos_d, y=deuda_lp_vals,
+                                           mode='lines', stackgroup='one', line=dict(color='#C62828')))
+                fig_d.add_trace(go.Scatter(name='Deuda Corto Plazo', x=anos_d, y=deuda_cp_vals,
+                                           mode='lines', stackgroup='one', line=dict(color='#FF8F00')))
+                fig_d.add_trace(go.Scatter(name='Póliza Crédito', x=anos_d, y=poliza_vals,
+                                           mode='lines', stackgroup='one', line=dict(color='#EF5350')))
+                fig_d.update_layout(
+                    title="Evolución de la Deuda",
+                    template="plotly_white", yaxis_title="Euros (€)", yaxis_tickformat=",.",
+                    height=400, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                )
+                st.plotly_chart(fig_d, use_container_width=True)
+            except Exception:
+                st.caption("⚠️ No se pudo generar el gráfico de evolución de la deuda.")
 
         else:
             st.info("Completa los datos de las etapas anteriores para ver el Análisis.")
