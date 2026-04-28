@@ -7,6 +7,7 @@ Tutor: Jaume Teodoro i Sadurní
 Universitat Pompeu Fabra - TecnoCampus
 """
 import streamlit as st
+from PIL import Image
 from config import Config
 from components.financial_engine import (
     FinancialEngine, Inversion, ProyectoTrabajoActivoPropio, Prestamo,
@@ -40,7 +41,7 @@ st.markdown("""
     .main-header {
         font-size: 2.5rem;
         font-weight: 700;
-        color: #1E3A8A;
+        color: #1B5E20;
         margin-bottom: 0.5rem;
     }
 
@@ -57,9 +58,9 @@ st.markdown("""
     }
 
     .stage-current {
-        color: #2563EB;
+        color: #2E7D32;
         font-weight: 700;
-        background-color: #DBEAFE;
+        background-color: #E8F5E9;
         padding: 0.5rem;
         border-radius: 0.5rem;
     }
@@ -70,12 +71,12 @@ st.markdown("""
 
     /* Cards de información */
     .info-card {
-        background-color: #F0F9FF;
-        border-left: 4px solid #2563EB;
+        background-color: #F1F8E9;
+        border-left: 4px solid #2E7D32;
         padding: 1rem;
         border-radius: 0.5rem;
         margin: 1rem 0;
-        color: #1E3A8A;
+        color: #1B5E20;
     }
 
     .success-card {
@@ -345,7 +346,7 @@ def render_sidebar():
             button_label = f"{status_icon} {stage_info['icon']} {stage_info['short']}"
 
             if is_current:
-                st.markdown(f"**🔵 {stage_info['icon']} {stage_info['short']}**")
+                st.markdown(f"**🟢 {stage_info['icon']} {stage_info['short']}**")
             else:
                 if st.button(button_label, key=f"nav_{stage_key}", use_container_width=True):
                     change_stage(stage_key)
@@ -820,9 +821,15 @@ def _extract_and_save_ingresos():
 def render_chat_interface(stage: str = ""):
     """Renderiza la interfaz de chat con el asistente."""
 
+    # Cargar avatar del asistente
+    _avatar_logo = Image.open(Config.BASE_DIR / "resources" / "LOGO.jpg")
+
     # Mostrar historial de mensajes
     for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
+        if message.get("stage") != stage:
+            continue
+        avatar = _avatar_logo if message["role"] == "assistant" else None
+        with st.chat_message(message["role"], avatar=avatar):
             st.markdown(message["content"])
 
     # Input del usuario
@@ -832,7 +839,7 @@ def render_chat_interface(stage: str = ""):
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        with st.chat_message("assistant"):
+        with st.chat_message("assistant", avatar=_avatar_logo):
             client = _get_llm_client()
 
             if not client.is_configured:
@@ -842,7 +849,7 @@ def render_chat_interface(stage: str = ""):
                 llm_messages = [
                     {"role": m["role"], "content": m["content"]}
                     for m in st.session_state.messages
-                    if m["role"] in ("user", "assistant")
+                    if m["role"] in ("user", "assistant") and m.get("stage") == stage
                 ]
                 with st.spinner("Pensando..."):
                     response = client.chat(
