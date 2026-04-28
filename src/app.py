@@ -3238,6 +3238,50 @@ def render_stage_analisis():
             df_pyl = pd.DataFrame(pyl_data)
             st.dataframe(df_pyl, use_container_width=True, hide_index=True)
 
+            # Detalle mensual
+            with st.expander("Ver detalle mensual"):
+                ano_pyl = st.selectbox("Año", [1, 2, 3, 4, 5], key="pyl_ano_sel", format_func=lambda x: f"Año {x}")
+                inicio_pyl = (ano_pyl - 1) * 12
+                meses_pyl = [f"Mes {inicio_pyl + m + 1}" for m in range(12)]
+
+                pyl_mes_conceptos = ["INGRESOS"]
+                if hay_trab_activo:
+                    pyl_mes_conceptos.append("Trab. propio activo")
+                pyl_mes_conceptos += ["(-) Costes variables", "MARGEN COMERCIAL",
+                                      "(-) G. fijos servicios", "(-) G. nómina", "EBITDA",
+                                      "(-) Amortizaciones"]
+                if hay_imputacion_sub:
+                    pyl_mes_conceptos.append("Imput. subvenciones")
+                pyl_mes_conceptos += ["EBIT", "(-) G. financieros", "EBT", "(-) IS", "RESULTADO NETO", "(Acumulado)"]
+
+                pyl_mes_data = {"Concepto": pyl_mes_conceptos}
+                for m in range(12):
+                    idx = inicio_pyl + m
+                    col_vals = [fmt(cuenta_resultados['ingresos'][idx])]
+                    if hay_trab_activo:
+                        col_vals.append(fmt(cuenta_resultados['ingresos_trabajo_propio_activo'][idx]))
+                    col_vals += [
+                        fmt(cuenta_resultados['costes_variables'][idx]),
+                        fmt(cuenta_resultados['margen_comercial'][idx]),
+                        fmt(cuenta_resultados['gastos_fijos_servicios'][idx]),
+                        fmt(cuenta_resultados['gastos_nomina'][idx]),
+                        fmt(cuenta_resultados['ebitda'][idx]),
+                        fmt(cuenta_resultados['amortizaciones'][idx]),
+                    ]
+                    if hay_imputacion_sub:
+                        col_vals.append(fmt(cuenta_resultados['imputacion_subvenciones'][idx]))
+                    col_vals += [
+                        fmt(cuenta_resultados['ebit'][idx]),
+                        fmt(cuenta_resultados['gastos_financieros'][idx]),
+                        fmt(cuenta_resultados['ebt'][idx]),
+                        fmt(cuenta_resultados['impuesto_sociedades'][idx]),
+                        fmt(cuenta_resultados['resultado'][idx]),
+                        fmt(cuenta_resultados['resultado_acumulado'][idx]),
+                    ]
+                    pyl_mes_data[meses_pyl[m]] = col_vals
+
+                st.dataframe(pd.DataFrame(pyl_mes_data), use_container_width=True, hide_index=True)
+
             # Resumen visual
             st.markdown("---")
             st.markdown("#### Resumen por Año")
@@ -3297,6 +3341,66 @@ def render_stage_analisis():
 
             df_cf = pd.DataFrame(cf_data)
             st.dataframe(df_cf, use_container_width=True, hide_index=True)
+
+            # Detalle mensual
+            with st.expander("Ver detalle mensual"):
+                ano_cf = st.selectbox("Año", [1, 2, 3, 4, 5], key="cf_ano_sel", format_func=lambda x: f"Año {x}")
+                inicio_cf = (ano_cf - 1) * 12
+                meses_cf = [f"Mes {inicio_cf + m + 1}" for m in range(12)]
+
+                cf_mes_conceptos = [
+                    "Cobros clientes",
+                    "(-) Pagos proveedores",
+                    "(-) Pagos gastos fijos",
+                    "(-) Pagos nóminas",
+                    "(-) Pagos SS",
+                    "(-) Pagos intereses",
+                    "(-) Pagos IRPF",
+                    "(-) Pagos IVA",
+                    "(-) Pagos IS",
+                    "CF OPERACIONES",
+                    "(-) Pagos inversiones",
+                    "CF INVERSIONES",
+                    "(+) Entrada capital",
+                    "(+) Entrada préstamos",
+                    "(+) Cobros subvenciones",
+                    "(-) Pagos préstamos",
+                    "CF FINANCIACIÓN",
+                    "CF NETO",
+                    "CF Acumulado",
+                    "Póliza crédito",
+                    "Tesorería disponible",
+                ]
+
+                cf_mes_data = {"Concepto": cf_mes_conceptos}
+                for m in range(12):
+                    idx = inicio_cf + m
+                    col_vals = [
+                        fmt(flujo_tesoreria['cobros_clientes'][idx]),
+                        fmt(flujo_tesoreria['pagos_proveedores'][idx]),
+                        fmt(flujo_tesoreria['pagos_gastos_fijos'][idx]),
+                        fmt(flujo_tesoreria['pagos_nominas'][idx]),
+                        fmt(flujo_tesoreria['pagos_ss'][idx]),
+                        fmt(flujo_tesoreria['pagos_intereses'][idx]),
+                        fmt(flujo_tesoreria['pagos_irpf'][idx]),
+                        fmt(flujo_tesoreria['pagos_iva'][idx]),
+                        fmt(flujo_tesoreria['pagos_is'][idx]),
+                        fmt(flujo_tesoreria['cf_operaciones'][idx]),
+                        fmt(flujo_tesoreria['pagos_inversiones'][idx]),
+                        fmt(flujo_tesoreria['cf_inversiones'][idx]),
+                        fmt(flujo_tesoreria['entrada_capital'][idx]),
+                        fmt(flujo_tesoreria['entrada_prestamos'][idx]),
+                        fmt(flujo_tesoreria['cobros_subvenciones'][idx]),
+                        fmt(flujo_tesoreria['pagos_prestamos'][idx]),
+                        fmt(flujo_tesoreria['cf_financiacion'][idx]),
+                        fmt(flujo_tesoreria['cf_neto'][idx]),
+                        fmt(flujo_tesoreria['cf_acumulado'][idx]),
+                        fmt(flujo_tesoreria['poliza_credito'][idx]),
+                        fmt(flujo_tesoreria['tesoreria_disponible'][idx]),
+                    ]
+                    cf_mes_data[meses_cf[m]] = col_vals
+
+                st.dataframe(pd.DataFrame(cf_mes_data), use_container_width=True, hide_index=True)
 
             # Métricas de tesorería
             st.markdown("---")
@@ -3371,6 +3475,56 @@ def render_stage_analisis():
 
             df_balance = pd.DataFrame(balance_data)
             st.dataframe(df_balance, use_container_width=True, hide_index=True)
+
+            # Detalle mensual
+            with st.expander("Ver detalle mensual"):
+                ano_bal = st.selectbox("Año", [1, 2, 3, 4, 5], key="bal_ano_sel", format_func=lambda x: f"Año {x}")
+                inicio_bal = (ano_bal - 1) * 12
+                meses_bal = [f"Mes {inicio_bal + m + 1}" for m in range(12)]
+
+                bal_mes_conceptos = [
+                    "Inmovilizado (neto)",
+                    "ACTIVO NO CORRIENTE",
+                    "Tesorería",
+                    "ACTIVO CORRIENTE",
+                    "TOTAL ACTIVO",
+                    "---",
+                    "Capital",
+                    "Resultado acumulado",
+                    "Subvenciones capital",
+                    "PATRIMONIO NETO",
+                    "Deuda largo plazo",
+                    "PASIVO NO CORRIENTE",
+                    "Deuda corto plazo",
+                    "Póliza crédito",
+                    "PASIVO CORRIENTE",
+                    "TOTAL PN + PASIVO",
+                ]
+
+                bal_mes_data = {"Concepto": bal_mes_conceptos}
+                for m in range(12):
+                    idx = inicio_bal + m
+                    col_vals = [
+                        fmt(balance['inmovilizado'][idx]),
+                        fmt(balance['activo_no_corriente'][idx]),
+                        fmt(balance['tesoreria'][idx]),
+                        fmt(balance['activo_corriente'][idx]),
+                        fmt(balance['activo_total'][idx]),
+                        "",
+                        fmt(balance['capital'][idx]),
+                        fmt(balance['resultado_acumulado'][idx]),
+                        fmt(balance['subvenciones_capital'][idx]),
+                        fmt(balance['patrimonio_neto'][idx]),
+                        fmt(balance['deuda_largo_plazo'][idx]),
+                        fmt(balance['pasivo_no_corriente'][idx]),
+                        fmt(balance['deuda_corto_plazo'][idx]),
+                        fmt(balance['poliza_credito'][idx]),
+                        fmt(balance['pasivo_corriente'][idx]),
+                        fmt(balance['pn_pasivo_total'][idx]),
+                    ]
+                    bal_mes_data[meses_bal[m]] = col_vals
+
+                st.dataframe(pd.DataFrame(bal_mes_data), use_container_width=True, hide_index=True)
 
             st.success("✅ El balance cuadra: ACTIVO = PATRIMONIO NETO + PASIVO")
         else:
