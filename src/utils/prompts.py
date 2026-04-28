@@ -220,17 +220,45 @@ Las categorías de servicios exteriores son:
 - Marketing: publicidad, redes sociales, ferias
 - Tributos municipales: IAE, tasas, licencias
 
+También debes recoger información sobre nóminas y personal. El sistema permite
+hasta 3 etapas de crecimiento con 5 perfiles de empleado cada una:
+
+Perfiles de empleado:
+- Socios fundadores (régimen autónomos): los fundadores que trabajan en el proyecto
+- Personal tipo A: primer tipo de empleado (ej: administrativo)
+- Personal tipo B: segundo tipo de empleado (ej: comercial)
+- Personal tipo C: tercer tipo de empleado (ej: técnico)
+- Personal tipo D: cuarto tipo de empleado (ej: gerente)
+
+Para cada empleado necesitas:
+- Número de trabajadores de ese perfil
+- Mes de alta (1-60)
+- Mes de baja (1-60)
+- Salario bruto anual en €
+
+Etapas de crecimiento:
+- Etapa 1: Personal inicial (desde el inicio del proyecto)
+- Etapa 2: Primera ampliación (cuando el negocio crece)
+- Etapa 3: Segunda ampliación (fase de consolidación)
+
 Instrucciones:
 - Pregunta por los gastos fijos principales del negocio.
 - Si el usuario da importes mensuales, conviértelos a anuales (×12) internamente.
 - Distingue claramente entre gastos fijos (OPEX) y compras puntuales de activos (CAPEX).
-- No preguntes por nóminas — eso se rellena directamente en el formulario.
+- Pregunta también por el personal que van a contratar: socios fundadores, empleados, etc.
+- Si el usuario menciona nóminas o personal, recoge: número de personas, salario bruto anual,
+  mes de alta y baja. Asigna automáticamente a la etapa correspondiente (si es desde el inicio → Etapa 1,
+  si es más adelante → Etapa 2 o 3).
+- Si el usuario no especifica mes de alta, asume mes 1. Si no especifica mes de baja, asume mes 60.
+- Si el usuario no especifica el perfil exacto, clasifica según la descripción:
+  "socio" o "fundador" → socios; "administrativo" → perfil_a; "comercial" o "ventas" → perfil_b;
+  "técnico" o "programador" o "desarrollador" → perfil_c; "gerente" o "director" → perfil_d.
 - Cuando tengas los datos principales, resúmelos y di al usuario que puede continuar.
 - Responde siempre en español.
 """
 
 EXTRACTION_PROMPT_OPEX = """
-Analiza la siguiente conversación y extrae los gastos fijos operativos anuales mencionados por el usuario.
+Analiza la siguiente conversación y extrae los gastos fijos operativos anuales y los datos de nóminas mencionados por el usuario.
 
 Devuelve EXCLUSIVAMENTE un objeto JSON con esta estructura, sin texto adicional:
 {
@@ -242,10 +270,11 @@ Devuelve EXCLUSIVAMENTE un objeto JSON con esta estructura, sin texto adicional:
   "transportes": null, "transportes_inc2": null, "transportes_inc3": null, "transportes_inc4": null, "transportes_inc5": null,
   "bancarios_seguros": null, "bancarios_seguros_inc2": null, "bancarios_seguros_inc3": null, "bancarios_seguros_inc4": null, "bancarios_seguros_inc5": null,
   "marketing": null, "marketing_inc2": null, "marketing_inc3": null, "marketing_inc4": null, "marketing_inc5": null,
-  "tributos": null, "tributos_inc2": null, "tributos_inc3": null, "tributos_inc4": null, "tributos_inc5": null
+  "tributos": null, "tributos_inc2": null, "tributos_inc3": null, "tributos_inc4": null, "tributos_inc5": null,
+  "empleados": []
 }
 
-Reglas:
+Reglas para gastos fijos (servicios exteriores):
 - Los campos sin "_inc" son el importe ANUAL en € o null si no se menciona.
 - Los campos "_incN" son el % de incremento para el año N (ej: 2.0 para 2%) o null si no se menciona.
 - Si el usuario da importes mensuales, multiplica por 12 para obtener el anual.
@@ -258,6 +287,38 @@ Reglas:
 - Publicidad, redes sociales, ferias, branding → "marketing"
 - Seguros, comisiones bancarias → "bancarios_seguros"
 - IAE, tasas, licencias municipales → "tributos"
+
+Reglas para nóminas (campo "empleados"):
+- "empleados" es un array de objetos. Si no se menciona personal, déjalo como array vacío [].
+- Cada objeto del array representa un grupo de empleados con la misma categoría y condiciones:
+  {
+    "perfil": "socios|perfil_a|perfil_b|perfil_c|perfil_d",
+    "num": 1,
+    "alta": 1,
+    "baja": 60,
+    "salario": 20000,
+    "etapa": 1
+  }
+- Clasificación del perfil:
+  * "socio", "fundador", "socios fundadores", "promotor" → "socios"
+  * "administrativo", "asistente", "secretaria", "recepcionista" → "perfil_a"
+  * "comercial", "ventas", "vendedor", "account manager" → "perfil_b"
+  * "técnico", "programador", "desarrollador", "ingeniero", "diseñador", "analista" → "perfil_c"
+  * "gerente", "director", "responsable", "jefe", "manager", "COO", "CTO" → "perfil_d"
+  * Si no se puede determinar, usa "perfil_a" como valor por defecto.
+- "num": número de trabajadores de ese perfil. Por defecto 1 si no se especifica.
+- "alta": mes de alta (1-60). Por defecto 1 si no se especifica.
+- "baja": mes de baja (1-60). Por defecto 60 si no se especifica.
+- "salario": salario bruto ANUAL en €. Si el usuario dice "1.500€/mes", calcula 1500×12=18000.
+- "etapa": etapa de crecimiento (1, 2 o 3).
+  * Si el empleado empieza en los primeros meses (mes 1-12) → etapa 1
+  * Si empieza más adelante (mes 13-36) → etapa 2
+  * Si empieza tarde (mes 37+) → etapa 3
+  * Por defecto, usa la etapa 1.
+- Si el usuario menciona "2 socios" o "somos 3 fundadores", crea un empleado con perfil "socios" y num=2 o num=3.
+- Si el usuario ya ha mencionado empleados en mensajes anteriores, incluye TODOS los empleados
+  mencionados hasta ahora (no solo los nuevos).
+- Si no se menciona ningún personal, "empleados" debe ser un array vacío [].
 """
 
 # ==============================================================================

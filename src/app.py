@@ -731,7 +731,7 @@ def _extract_and_save_financiacion():
 
 
 def _extract_and_save_opex():
-    """Extrae gastos fijos de la conversación y actualiza st.session_state.opex."""
+    """Extrae gastos fijos y nóminas de la conversación y actualiza st.session_state."""
     conversation = "\n".join([
         f"{m['role'].upper()}: {m['content']}"
         for m in st.session_state.messages
@@ -746,6 +746,7 @@ def _extract_and_save_opex():
         system=EXTRACTION_PROMPT_OPEX,
     )
 
+    # === Gastos fijos (servicios exteriores) ===
     opex_keys = ["alquileres", "suministros", "rentings", "reparaciones",
                  "servicios_prof", "transportes", "bancarios_seguros", "marketing", "tributos"]
     for key in opex_keys:
@@ -759,6 +760,137 @@ def _extract_and_save_opex():
             inc_val = data.get(f"{key}_inc{yr}")
             if inc_val is not None and isinstance(inc_val, (int, float)):
                 gf["incrementos"][yr - 2] = float(inc_val)
+
+    # === Nóminas (empleados) ===
+    empleados_extraidos = data.get("empleados", [])
+    if empleados_extraidos and isinstance(empleados_extraidos, list):
+        # Inicializar empleados_data si no existe
+        perfiles_keys = ["socios", "perfil_a", "perfil_b", "perfil_c", "perfil_d"]
+        etapas_config = [
+            (1, 2.0),
+            (2, 2.0),
+            (3, 3.0),
+        ]
+
+        if "empleados_data" not in st.session_state:
+            st.session_state.empleados_data = {}
+            for etapa_num, inc_default in etapas_config:
+                st.session_state.empleados_data[etapa_num] = {
+                    "incremento_salario": inc_default,
+                    "perfiles": {}
+                }
+                for pk in perfiles_keys:
+                    st.session_state.empleados_data[etapa_num]["perfiles"][pk] = {
+                        "num": 0, "alta": 1, "baja": 60, "salario": 0
+                    }
+
+        # Asegurar estructura correcta con "perfiles"
+        for etapa_num, inc_default in etapas_config:
+            if etapa_num not in st.session_state.empleados_data:
+                st.session_state.empleados_data[etapa_num] = {
+                    "incremento_salario": inc_default,
+                    "perfiles": {}
+                }
+            if "perfiles" not in st.session_state.empleados_data[etapa_num]:
+                old_data = st.session_state.empleados_data[etapa_num]
+                st.session_state.empleados_data[etapa_num] = {
+                    "incremento_salario": old_data.get("incremento_salario", inc_default),
+                    "perfiles": {}
+                }
+                for pk in perfiles_keys:
+                    if pk in old_data:
+                        st.session_state.empleados_data[etapa_num]["perfiles"][pk] = old_data[pk]
+                    else:
+                        st.session_state.empleados_data[etapa_num]["perfiles"][pk] = {
+                            "num": 0, "alta": 1, "baja": 60, "salario": 0
+                        }
+            # Asegurar que todos los perfiles existen
+            for pk in perfiles_keys:
+                if pk not in st.session_state.empleados_data[etapa_num]["perfiles"]:
+                    st.session_state.empleados_data[etapa_num]["perfiles"][pk] = {
+                        "num": 0, "alta": 1, "baja": 60, "salario": 0
+                    }
+
+        # Procesar cada empleado extraído
+        for emp in empleados_extraidos:
+            if not isinstance(emp, dict):
+                continue
+
+            perfil = emp.get("perfil", "perfil_a")
+            # Validar que el perfil es válido
+            if perfil not in perfiles_keys:
+                # Intentar mapear nombres comunes
+                perfil_lower = perfil.lower() if isinstance(perfil, str) else ""
+                if any(p in perfil_lower for p in ["socio", "fundador"]):
+                    perfil = "socios"
+                elif any(p in perfil_lower for p in ["administrativo", "asistente", "secretari"]):
+                    perfil = "perfil_a"
+                elif any(p in perfil_lower for p in ["comercial", "ventas", "vendedor"]):
+                    perfil = "perfil_b"
+                elif any(p in perfil_lower for p in ["técnico", "tecnico", "programador", "desarrollador", "ingeniero", "diseñador", "analista"]):
+                    perfil = "perfil_c"
+                elif any(p in perfil_lower for p in ["gerente", "director", "responsable", "jefe", "manager"]):
+                    perfil = "perfil_d"
+                else:
+                    perfil = "perfil_a"
+
+            # Determinar etapa
+            etapa = emp.get("etapa", 1)
+            if not isinstance(etapa, int) or etapa not in (1, 2, 3):
+                alta = emp.get("alta", 1)
+                if isinstance(alta, (int, float)):
+                    if alta <= 12:
+                        etapa = 1
+                    elif alta <= 36:
+                        etapa = 2
+                    else:
+                        etapa = 3
+                else:
+                    etapa = 1
+
+            # Extraer valores con validación
+            num = emp.get("num", 1)
+            if not isinstance(num, (int, float)) or num < 0:
+                num = 1
+            num = int(num)
+
+            alta = emp.get("alta", 1)
+            if not isinstance(alta, (int, float)) or alta < 1:
+                alta = 1
+            alta = int(alta)
+
+            baja = emp.get("baja", 60)
+            if not isinstance(baja, (int, float)) or baja < 1:
+                baja = 60
+            baja = int(baja)
+
+            salario = emp.get("salario", 0)
+            if not isinstance(salario, (int, float)) or salario < 0:
+                salario = 0
+            salario = int(salario)
+
+            # Solo actualizar si hay datos significativos (al menos num > 0 y salario > 0)
+            if num > 0 and salario > 0:
+                st.session_state.empleados_data[etapa]["perfiles"][perfil] = {
+                    "num": num,
+                    "alta": alta,
+                    "baja": baja,
+                    "salario": salario
+                }
+                # También actualizar las keys de los widgets de Streamlit para que
+                # los number_input reflejen los nuevos valores tras el rerun
+                widget_key_num = f"num_{etapa}_{perfil}"
+                widget_key_alta = f"alta_{etapa}_{perfil}"
+                widget_key_baja = f"baja_{etapa}_{perfil}"
+                widget_key_salario = f"salario_{etapa}_{perfil}"
+                if widget_key_num in st.session_state:
+                    st.session_state[widget_key_num] = num
+                if widget_key_alta in st.session_state:
+                    st.session_state[widget_key_alta] = alta
+                if widget_key_baja in st.session_state:
+                    st.session_state[widget_key_baja] = baja
+                if widget_key_salario in st.session_state:
+                    st.session_state[widget_key_salario] = salario
 
 
 def _extract_and_save_ingresos():
@@ -2357,13 +2489,19 @@ def render_stage_opex():
 - Marketing y publicidad
 - Seguros
 
-👥 **2. Personal** (para cada empleado)
+👥 **2. Nóminas y Personal** (para cada empleado o socio)
 - Número de trabajadores por perfil
 - Mes de alta y baja (1-60)
 - Salario bruto anual
 
-**Ejemplo:**
-*"El alquiler son 800€/mes, suministros unos 150€/mes. Contrataremos 1 empleado administrativo con 18.000€ brutos/año desde el mes 1, y un comercial con 22.000€ desde el mes 6"*
+Puedes decirme cosas como:
+- *"Somos 2 socios fundadores, cobraremos 1.000€/mes cada uno"*
+- *"Contrataremos 1 administrativo con 18.000€ brutos/año desde el mes 1"*
+- *"Un comercial con 22.000€ desde el mes 6 hasta el mes 36"*
+- *"En el mes 13 incorporaremos un programador con 25.000€ brutos al año"*
+
+**Ejemplo completo:**
+*"El alquiler son 800€/mes, suministros unos 150€/mes. Somos 2 socios fundadores con 15.000€ brutos/año cada uno. Contrataremos 1 administrativo con 18.000€ brutos/año desde el mes 1, y un comercial con 22.000€ desde el mes 6"*
 
 💡 La Seguridad Social e IRPF se calculan automáticamente."""
 
