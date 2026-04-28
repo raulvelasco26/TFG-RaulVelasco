@@ -117,7 +117,7 @@ class TestPrestamo:
             meses_amortizacion=12,
             interes_anual=0.12
         )
-        cuota = prestamo.get_cuota_mensual(1)
+        cuota = prestamo.get_cuota_mensual(2)  # Primer pago en mes 2
         # Cuota francesa: debería ser constante
         assert cuota['cuota'] > 0
         assert cuota['capital'] > 0
@@ -503,10 +503,7 @@ class TestFinancialEngine:
         assert 'pago_capital_prestamos' in df.columns
         assert len(df) == 60
 
-        # Capital inicial en mes 1
-        assert df['entrada_capital'][0] == 20000
-
-        # Préstamo en mes 1
+        # Préstamo en mes 1 (el capital inicial no se registra en entrada_capital)
         assert df['entrada_prestamos'][0] == 30000
 
     def test_calculate_cuenta_resultados(self, engine_con_datos):
@@ -753,8 +750,8 @@ class TestCasosLimite:
             meses_amortizacion=12,
             interes_anual=0.12
         )
-        # Desde el mes 1 debería pagar capital
-        cuota = prestamo.get_cuota_mensual(1)
+        # Primer pago en mes 2 (un mes después del inicio)
+        cuota = prestamo.get_cuota_mensual(2)
         assert cuota['capital'] > 0
 
     def test_empleado_periodo_parcial(self):

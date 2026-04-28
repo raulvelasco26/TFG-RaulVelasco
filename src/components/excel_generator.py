@@ -315,12 +315,20 @@ def _fill_capex(ws, ss):
     ws["F44"] = p1.get("anos", 0)
     ws["G44"] = p1.get("mes_adquisicion", 13)
     ws["C45"] = p1.get("subvencion", 0)
+    ws["G45"] = p1.get("mes_adquisicion", 13)  # inicio_subv_inv1
+
+    # Si proyecto_inv_1 no tiene subvención propia, usar el slot para subvenciones de CAPEX inicial
+    total_capex_subvencion = sum(data.get("subvencion", 0) for data in capex.values())
+    if total_capex_subvencion > 0 and p1.get("importe", 0) == 0 and p1.get("subvencion", 0) == 0:
+        ws["C45"] = total_capex_subvencion
+        ws["G45"] = 1  # CAPEX inicial: subvención recibida en mes 1
 
     p2 = proyectos_inv.get("proyecto_inv_2", {})
     ws["C47"] = p2.get("importe", 0)
     ws["F47"] = p2.get("anos", 0)
     ws["G47"] = p2.get("mes_adquisicion", 13)
     ws["C48"] = p2.get("subvencion", 0)
+    ws["G48"] = p2.get("mes_adquisicion", 13)  # inicio_subv_inv2
 
     # Proyectos de trabajo para activo propio
     proyectos_trab = ss.get("proyectos_trabajo", {})

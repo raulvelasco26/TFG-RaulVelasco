@@ -570,15 +570,14 @@ class FinancialEngine:
             'deuda_corto_plazo': [0.0] * self.months,
         }
 
-        # Saldo inicial (mes 0): capital inicial + subvenciones mes 1 - inversiones del mes 1
+        # Saldo inicial (mes 0): capital inicial - inversiones del mes 1 con IVA
         # Las inversiones del mes 1 se pagan en el mes 0 (como en el Excel)
+        # Las subvenciones se cobran en cobros_subvenciones en su mes de recepción
         # Los préstamos entran en su mes de inicio
         self.saldo_inicial_tesoreria = self.capital_inicial
         for inv in self.inversiones:
             if inv.mes_adquisicion == 1:
                 self.saldo_inicial_tesoreria -= inv.total_con_iva
-                if inv.subvencion > 0:
-                    self.saldo_inicial_tesoreria += inv.subvencion
 
         # Ampliaciones de capital - entran como flujo en su mes
         for amp in self.ampliaciones:
@@ -709,11 +708,16 @@ class FinancialEngine:
         """
         intereses = [0.0] * self.months
 
-        # Pre-calcular IVA neto mensual (IVA repercutido - IVA soportado)
+        # IVA de inversiones del mes 0 (pagado en saldo inicial, recuperado en mes 1 directamente)
+        iva_inv_mes0 = sum(inv.iva for inv in self.inversiones if inv.mes_adquisicion == 1)
+
+        # Pre-calcular IVA neto mensual (IVA repercutido - IVA soportado operativo)
         iva_neto_mensual = [0.0] * self.months
         for i in range(self.months):
             iva_rep = self.df_ventas['iva_repercutido'][i]
             iva_inv = self.df_amortizaciones['iva_soportado_inversiones'][i]
+            if i == 0:
+                iva_inv -= iva_inv_mes0  # Ya gestionado directamente en mes 1
             iva_sop = (self.df_gastos['iva_soportado_gastos'][i] +
                       iva_inv +
                       self.df_ventas['costes_variables'][i] * self.tax_config.iva_compras)
@@ -783,10 +787,13 @@ class FinancialEngine:
             if i > 0:
                 pagos_irpf = self.df_nominas['irpf'][i-1]
 
-            # Pagos IVA (mensual a mes vencido)
-            pagos_iva = 0.0
-            if i > 0:
+            # Pagos IVA: mes 1 recupera el IVA de inversiones del mes 0; resto con 1 mes de retraso
+            if i == 0:
+                pagos_iva = -iva_inv_mes0
+            elif i > 0:
                 pagos_iva = iva_neto_mensual[i - 1]
+            else:
+                pagos_iva = 0.0
 
             # Pagos inversiones (las del mes 1 ya se pagaron en el mes 0, saldo inicial)
             pagos_inv = 0.0
@@ -805,10 +812,10 @@ class FinancialEngine:
             pago_prest = self.df_financiacion['pago_capital_prestamos'][i]
             pago_int = self.df_financiacion['pago_intereses'][i]
 
-            # Cobros subvenciones (inversiones mes>1 + proyectos trabajo)
+            # Cobros subvenciones: todas las inversiones en su mes (incluyendo mes 1)
             cobros_sub = 0.0
             for inv in self.inversiones:
-                if inv.subvencion > 0 and inv.mes_adquisicion == i + 1 and inv.mes_adquisicion > 1:
+                if inv.subvencion > 0 and inv.mes_adquisicion == i + 1:
                     cobros_sub += inv.subvencion
             for proy in self.proyectos_trabajo:
                 if proy.subvencion > 0 and proy.mes_fin_proyecto == i + 1:
@@ -905,12 +912,16 @@ class FinancialEngine:
         for i in range(1, self.months):
             data['pagos_irpf'][i] = self.df_nominas['irpf'][i-1]
 
-        # Pagos IVA (mensual a mes vencido, como en el Excel)
-        # Calcular IVA neto de cada mes: IVA repercutido - IVA soportado
+        # Pagos IVA: inversiones del mes 0 se recuperan directamente en mes 1;
+        # el IVA operativo se liquida con 1 mes de retraso (como en el Excel)
+        iva_inv_mes0 = sum(inv.iva for inv in self.inversiones if inv.mes_adquisicion == 1)
+
         iva_neto_mensual = [0.0] * self.months
         for i in range(self.months):
             iva_rep = self.df_ventas['iva_repercutido'][i]
             iva_inv = self.df_amortizaciones['iva_soportado_inversiones'][i]
+            if i == 0:
+                iva_inv -= iva_inv_mes0  # Ya gestionado directamente en mes 1
             iva_sop = (self.df_gastos['iva_soportado_gastos'][i] +
                       iva_inv +
                       self.df_ventas['costes_variables'][i] * self.tax_config.iva_compras)
@@ -919,7 +930,9 @@ class FinancialEngine:
         # Guardar IVA neto mensual para usarlo en el balance (acreedores/deudores)
         self.iva_neto_mensual = iva_neto_mensual
 
-        # Liquidación mensual con 1 mes de retraso
+        # Mes 1: recuperación directa del IVA de inversiones del mes 0
+        data['pagos_iva'][0] = -iva_inv_mes0
+        # Meses siguientes: liquidación con 1 mes de retraso
         for i in range(1, self.months):
             data['pagos_iva'][i] = iva_neto_mensual[i - 1]
 
@@ -935,9 +948,9 @@ class FinancialEngine:
             if inv.mes_adquisicion > 1 and inv.mes_adquisicion <= self.months:
                 data['pagos_inversiones'][inv.mes_adquisicion - 1] += inv.total_con_iva
 
-        # Cobros subvenciones: inversiones mes>1 en su mes_adquisicion (mes 1 ya está en saldo_inicial)
+        # Cobros subvenciones: todas las inversiones en su mes (incluyendo mes 1)
         for inv in self.inversiones:
-            if inv.subvencion > 0 and inv.mes_adquisicion > 1 and inv.mes_adquisicion <= self.months:
+            if inv.subvencion > 0 and inv.mes_adquisicion <= self.months:
                 data['cobros_subvenciones'][inv.mes_adquisicion - 1] += inv.subvencion
         for proy in self.proyectos_trabajo:
             if proy.subvencion > 0 and proy.mes_fin_proyecto <= self.months:
