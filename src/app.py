@@ -227,6 +227,14 @@ def init_session_state():
             },
         }
 
+    # === Configuración fiscal ===
+    if "fiscalidad" not in st.session_state:
+        st.session_state.fiscalidad = {
+            "is_rate": 25.0,
+            "iva_ventas": 21.0,
+            "iva_compras": 21.0,
+        }
+
     # === Motor de cálculos ===
     if "financial_engine" not in st.session_state:
         st.session_state.financial_engine = FinancialEngine()
@@ -534,7 +542,8 @@ def _build_analisis_system_prompt() -> str:
             return sum(df[col][(ano - 1) * 12: ano * 12])
 
         def fmt_n(v):
-            return f"{v:,.0f} €" if v is not None else "N/A"
+            sym = st.session_state.get("moneda", "€")
+            return f"{v:,.0f} {sym}".strip() if v is not None else "N/A"
 
         def fmt_p(v):
             return f"{v * 100:.1f}%" if v is not None else "N/A"
@@ -1096,6 +1105,15 @@ def prepare_financial_engine():
     """
     engine = st.session_state.financial_engine
 
+    # Configuración fiscal
+    fiscal = st.session_state.get("fiscalidad", {})
+    engine.set_tax_config(
+        is_rate=fiscal.get("is_rate", 25.0) / 100,
+        iva_ventas=fiscal.get("iva_ventas", 21.0) / 100,
+        iva_compras=fiscal.get("iva_compras", 21.0) / 100,
+        iva_inversiones=fiscal.get("iva_compras", 21.0) / 100,
+    )
+
     # 1. CAPEX - Inversiones
     inversiones = []
     capex_mapping = {
@@ -1113,6 +1131,9 @@ def prepare_financial_engine():
         "fianzas": "Fianzas y depósitos",
     }
 
+    # Terrenos y fianzas no llevan IVA (0%) según metodología PEF
+    capex_iva_cero = {"terrenos", "fianzas"}
+
     for key, nombre in capex_mapping.items():
         data = st.session_state.capex.get(key, {})
         importe = data.get("importe", 0)
@@ -1122,7 +1143,8 @@ def prepare_financial_engine():
                 "importe": importe,
                 "vida_util_anos": data.get("anos", 5),
                 "mes_adquisicion": 1,
-                "subvencion": data.get("subvencion", 0)
+                "subvencion": data.get("subvencion", 0),
+                "iva_rate": 0.0 if key in capex_iva_cero else 0.21,
             })
 
     # Proyectos de inversión en años posteriores (son Inversiones estándar con mes_adquisicion > 1)
@@ -1631,6 +1653,44 @@ Puedes responderme de forma natural, por ejemplo:
         fecha = st.text_input("Fecha de inicio prevista", value=st.session_state.proyecto.get("fecha_inicio", ""), key="proyecto_fecha_input")
         if fecha != st.session_state.proyecto.get("fecha_inicio", ""):
             st.session_state.proyecto["fecha_inicio"] = fecha
+
+    # Configuración fiscal
+    st.markdown("---")
+    st.markdown("### ⚙️ Configuración Fiscal")
+    st.caption("Modifica los tipos fiscales si difieren de los valores por defecto:")
+
+    fiscal = st.session_state.fiscalidad
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        is_val = st.number_input(
+            "Impuesto de Sociedades (%)",
+            value=float(fiscal.get("is_rate", 25.0)),
+            min_value=0.0, max_value=100.0, step=0.5,
+            key="fiscal_is_rate",
+            help="Tipo general IS en España: 25%. Empresas de nueva creación: 15% los 2 primeros años."
+        )
+        fiscal["is_rate"] = is_val
+
+    with col2:
+        iva_v = st.number_input(
+            "IVA ventas (%)",
+            value=float(fiscal.get("iva_ventas", 21.0)),
+            min_value=0.0, max_value=100.0, step=0.5,
+            key="fiscal_iva_ventas",
+            help="Tipo general: 21%. Reducido: 10%. Superreducido: 4%."
+        )
+        fiscal["iva_ventas"] = iva_v
+
+    with col3:
+        iva_c = st.number_input(
+            "IVA compras (%)",
+            value=float(fiscal.get("iva_compras", 21.0)),
+            min_value=0.0, max_value=100.0, step=0.5,
+            key="fiscal_iva_compras",
+            help="Tipo de IVA aplicado a las compras y gastos de explotación."
+        )
+        fiscal["iva_compras"] = iva_c
 
     # Navegación
     st.markdown("---")
@@ -2193,11 +2253,10 @@ def render_stage_financiacion():
             )
             amp_data["importe"] = amp_importe
         with col3:
-            amp_valoracion = st.number_input(
-                "Valoración pre-money (€)", value=amp_data.get("valoracion_premoney", 0), min_value=0, step=10000,
-                key="amp_valoracion"
-            )
+            amp_valoracion = cap_importe  # Calculado: valor previo a la ronda = capital inicial
             amp_data["valoracion_premoney"] = amp_valoracion
+            st.metric("Valoración pre-money (€)", f"{amp_valoracion:,.0f} €",
+                      help="Valor de la empresa antes de la ampliación = capital inicial de los fundadores")
 
         # Mostrar tabla resumen de refinanciación
         if cap_acciones > 0:
@@ -3291,12 +3350,14 @@ def render_stage_analisis():
     ])
 
     # Función auxiliar para formatear números
+    _sym = st.session_state.get("moneda", "€")
     def fmt(valor, decimals=0):
         if valor is None or pd.isna(valor):
             return "-"
+        suffix = f" {_sym}" if _sym else ""
         if decimals == 0:
-            return f"{valor:,.0f} €"
-        return f"{valor:,.{decimals}f} €"
+            return f"{valor:,.0f}{suffix}"
+        return f"{valor:,.{decimals}f}{suffix}"
 
     def fmt_pct(valor):
         if valor is None or pd.isna(valor):
@@ -3926,38 +3987,6 @@ def render_stage_analisis():
                 st.caption("⚠️ No se pudo generar el gráfico de márgenes.")
 
             st.markdown("---")
-
-            # ── Chart #6: Composición de Costes (Donut) ──
-            try:
-                st.markdown("#### 🍩 Composición de Costes")
-                ano_cost = st.selectbox("Selecciona el año:", [1, 2, 3, 4, 5],
-                                        key="costes_ano_sel", format_func=lambda x: f"Año {x}")
-                cv_cost = suma_ano(cuenta_resultados, 'costes_variables', ano_cost)
-                gf_cost = suma_ano(cuenta_resultados, 'gastos_fijos_servicios', ano_cost)
-                nom_cost = suma_ano(cuenta_resultados, 'gastos_nomina', ano_cost)
-                amort_cost = suma_ano(cuenta_resultados, 'amortizaciones', ano_cost)
-                fin_cost = suma_ano(cuenta_resultados, 'gastos_financieros', ano_cost)
-                is_cost = suma_ano(cuenta_resultados, 'impuesto_sociedades', ano_cost)
-
-                cost_labels = ['Costes Variables', 'Gastos Fijos', 'Nóminas', 'Amortizaciones', 'Gastos Financieros', 'Impuestos']
-                cost_values = [cv_cost, gf_cost, nom_cost, amort_cost, fin_cost, is_cost]
-                # Filter out zero values
-                cost_labels_f = [l for l, v in zip(cost_labels, cost_values) if v > 0]
-                cost_values_f = [v for v in cost_values if v > 0]
-                cost_colors = ['#EF5350', '#FF8F00', '#AB47BC', '#5C6BC0', '#26A69A', '#78909C']
-
-                fig_donut = px.pie(names=cost_labels_f, values=cost_values_f, hole=0.5,
-                                  color_discrete_sequence=cost_colors[:len(cost_labels_f)])
-                fig_donut.update_traces(textposition='inside', textinfo='percent+label+value',
-                                        texttemplate='%{label}<br>%{value:,.0f} € (%{percent})')
-                fig_donut.update_layout(
-                    title=f"Composición de Costes — Año {ano_cost}",
-                    template="plotly_white", height=450,
-                    showlegend=True,
-                )
-                st.plotly_chart(fig_donut, use_container_width=True)
-            except Exception:
-                st.caption("⚠️ No se pudo generar el gráfico de composición de costes.")
 
             st.markdown("---")
 

@@ -600,6 +600,10 @@ class FinancialEngine:
                 data['pago_intereses'][idx] += cuota['intereses']
                 capital_pendiente -= cuota['capital']
 
+                # El préstamo solo existe en el balance a partir de su mes de inicio
+                if mes < prestamo.mes_inicio:
+                    continue
+
                 # Clasificar deuda LP/CP:
                 # CP = próximos 12 meses de amortización de principal
                 # LP = resto del saldo pendiente
@@ -1050,11 +1054,12 @@ class FinancialEngine:
             # Resultado acumulado
             data['resultado_acumulado'][i] = self.cuenta_resultados['resultado_acumulado'][i]
 
-            # Subvenciones de capital: total subvenciones - amortización acumulada de subvenciones
-            total_subvenciones = sum(inv.subvencion for inv in self.inversiones)
-            total_subvenciones += sum(p.subvencion for p in self.proyectos_trabajo)
+            # Subvenciones de capital: solo las ya cobradas (timing correcto para cuadrar balance)
+            # Inversiones: cobro en mes_adquisicion; TPA: cobro en mes_fin_proyecto
+            sub_recibidas = sum(inv.subvencion for inv in self.inversiones if inv.mes_adquisicion <= i + 1)
+            sub_recibidas += sum(p.subvencion for p in self.proyectos_trabajo if p.mes_fin_proyecto <= i + 1)
             imputacion_acumulada = sum(self.cuenta_resultados['imputacion_subvenciones'][0:i+1])
-            data['subvenciones_capital'][i] = total_subvenciones - imputacion_acumulada
+            data['subvenciones_capital'][i] = sub_recibidas - imputacion_acumulada
 
             # Crédito fiscal IS pendiente de utilizar ("Realizable de IS" en el Excel)
             # Solo aparece en el activo (deferred tax asset)
