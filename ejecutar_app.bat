@@ -21,18 +21,12 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [2/3] Verificando dependencias...
-python -c "import streamlit" 2>nul
+echo [2/3] Instalando/actualizando dependencias...
+pip install -r requirements.txt
 if %errorlevel% neq 0 (
-    echo.
-    echo Las dependencias no estan instaladas.
-    echo Instalando dependencias...
-    pip install -r requirements.txt
-    if %errorlevel% neq 0 (
-        echo ERROR: No se pudieron instalar las dependencias
-        pause
-        exit /b 1
-    )
+    echo ERROR: No se pudieron instalar las dependencias
+    pause
+    exit /b 1
 )
 
 echo.

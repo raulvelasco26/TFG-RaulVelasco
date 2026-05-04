@@ -28,18 +28,12 @@ fi
 $PYTHON --version
 
 echo ""
-echo "[2/3] Verificando dependencias..."
-$PYTHON -c "import streamlit" 2>/dev/null
+echo "[2/3] Instalando/actualizando dependencias..."
+$PYTHON -m pip install -r requirements.txt
 if [ $? -ne 0 ]; then
-    echo ""
-    echo "Las dependencias no están instaladas."
-    echo "Instalando dependencias..."
-    $PYTHON -m pip install -r requirements.txt
-    if [ $? -ne 0 ]; then
-        echo "ERROR: No se pudieron instalar las dependencias"
-        read -p "Presiona Enter para salir..."
-        exit 1
-    fi
+    echo "ERROR: No se pudieron instalar las dependencias"
+    read -p "Presiona Enter para salir..."
+    exit 1
 fi
 
 echo ""
