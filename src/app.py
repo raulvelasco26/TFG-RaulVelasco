@@ -233,6 +233,15 @@ def init_session_state():
             "is_rate": 25.0,
             "iva_ventas": 21.0,
             "iva_compras": 21.0,
+            "iva_inversiones": 21.0,
+            "ss_autonomos_rate": 15.0,
+            "ss_empresa_rate": 33.0,
+            "ss_trabajador_rate": 6.5,
+            "ss_tope_autonomos": 56640.0,
+            "ss_tope_general": 56640.0,
+            "irpf_bajo": 0.0,
+            "irpf_medio": 20.0,
+            "irpf_alto": 40.0,
         }
 
     # === Motor de cálculos ===
@@ -1111,7 +1120,15 @@ def prepare_financial_engine():
         is_rate=fiscal.get("is_rate", 25.0) / 100,
         iva_ventas=fiscal.get("iva_ventas", 21.0) / 100,
         iva_compras=fiscal.get("iva_compras", 21.0) / 100,
-        iva_inversiones=fiscal.get("iva_compras", 21.0) / 100,
+        iva_inversiones=fiscal.get("iva_inversiones", 21.0) / 100,
+        ss_autonomos_rate=fiscal.get("ss_autonomos_rate", 15.0) / 100,
+        ss_empresa_rate=fiscal.get("ss_empresa_rate", 33.0) / 100,
+        ss_trabajador_rate=fiscal.get("ss_trabajador_rate", 6.5) / 100,
+        ss_tope_autonomos=fiscal.get("ss_tope_autonomos", 56640.0),
+        ss_tope_general=fiscal.get("ss_tope_general", 56640.0),
+        irpf_bajo=fiscal.get("irpf_bajo", 0.0) / 100,
+        irpf_medio=fiscal.get("irpf_medio", 20.0) / 100,
+        irpf_alto=fiscal.get("irpf_alto", 40.0) / 100,
     )
 
     # 1. CAPEX - Inversiones
@@ -1657,40 +1674,89 @@ Puedes responderme de forma natural, por ejemplo:
     # Configuración fiscal
     st.markdown("---")
     st.markdown("### ⚙️ Configuración Fiscal")
-    st.caption("Modifica los tipos fiscales si difieren de los valores por defecto:")
+    st.caption("Modifica los tipos fiscales si difieren de los valores por defecto para tu país:")
 
     fiscal = st.session_state.fiscalidad
-    col1, col2, col3 = st.columns(3)
 
+    # Impuestos principales
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
-        is_val = st.number_input(
-            "Impuesto de Sociedades (%)",
-            value=float(fiscal.get("is_rate", 25.0)),
-            min_value=0.0, max_value=100.0, step=0.5,
-            key="fiscal_is_rate",
-            help="Tipo general IS en España: 25%. Empresas de nueva creación: 15% los 2 primeros años."
+        fiscal["is_rate"] = st.number_input(
+            "IS (%)", value=float(fiscal.get("is_rate", 25.0)),
+            min_value=0.0, max_value=100.0, step=0.5, key="fiscal_is_rate",
+            help="Impuesto de Sociedades. España: 25% general, 15% empresas nueva creación."
         )
-        fiscal["is_rate"] = is_val
-
     with col2:
-        iva_v = st.number_input(
-            "IVA ventas (%)",
-            value=float(fiscal.get("iva_ventas", 21.0)),
-            min_value=0.0, max_value=100.0, step=0.5,
-            key="fiscal_iva_ventas",
+        fiscal["iva_ventas"] = st.number_input(
+            "IVA ventas (%)", value=float(fiscal.get("iva_ventas", 21.0)),
+            min_value=0.0, max_value=100.0, step=0.5, key="fiscal_iva_ventas",
             help="Tipo general: 21%. Reducido: 10%. Superreducido: 4%."
         )
-        fiscal["iva_ventas"] = iva_v
-
     with col3:
-        iva_c = st.number_input(
-            "IVA compras (%)",
-            value=float(fiscal.get("iva_compras", 21.0)),
-            min_value=0.0, max_value=100.0, step=0.5,
-            key="fiscal_iva_compras",
-            help="Tipo de IVA aplicado a las compras y gastos de explotación."
+        fiscal["iva_compras"] = st.number_input(
+            "IVA compras (%)", value=float(fiscal.get("iva_compras", 21.0)),
+            min_value=0.0, max_value=100.0, step=0.5, key="fiscal_iva_compras",
+            help="IVA soportado en compras y gastos de explotación."
         )
-        fiscal["iva_compras"] = iva_c
+    with col4:
+        fiscal["iva_inversiones"] = st.number_input(
+            "IVA inversiones (%)", value=float(fiscal.get("iva_inversiones", 21.0)),
+            min_value=0.0, max_value=100.0, step=0.5, key="fiscal_iva_inversiones",
+            help="IVA soportado en adquisición de inmovilizado (terrenos y fianzas: 0%)."
+        )
+
+    # Seguridad Social
+    st.markdown("**Seguridad Social**")
+    col1, col2, col3, col4, col5 = st.columns(5)
+    with col1:
+        fiscal["ss_autonomos_rate"] = st.number_input(
+            "SS autónomos empresa (%)", value=float(fiscal.get("ss_autonomos_rate", 15.0)),
+            min_value=0.0, max_value=100.0, step=0.5, key="fiscal_ss_aut",
+            help="Cuota SS a cargo de la empresa en régimen especial autónomos."
+        )
+    with col2:
+        fiscal["ss_empresa_rate"] = st.number_input(
+            "SS general empresa (%)", value=float(fiscal.get("ss_empresa_rate", 33.0)),
+            min_value=0.0, max_value=100.0, step=0.5, key="fiscal_ss_emp",
+            help="Cuota SS a cargo de la empresa en régimen general."
+        )
+    with col3:
+        fiscal["ss_trabajador_rate"] = st.number_input(
+            "SS general trabajador (%)", value=float(fiscal.get("ss_trabajador_rate", 6.5)),
+            min_value=0.0, max_value=100.0, step=0.5, key="fiscal_ss_trab",
+            help="Cuota SS a cargo del trabajador en régimen general."
+        )
+    with col4:
+        fiscal["ss_tope_autonomos"] = st.number_input(
+            "Tope SS autónomos (€)", value=float(fiscal.get("ss_tope_autonomos", 56640.0)),
+            min_value=0.0, step=100.0, key="fiscal_tope_aut",
+            help="Base máxima de cotización anual para autónomos."
+        )
+    with col5:
+        fiscal["ss_tope_general"] = st.number_input(
+            "Tope SS general (€)", value=float(fiscal.get("ss_tope_general", 56640.0)),
+            min_value=0.0, step=100.0, key="fiscal_tope_gen",
+            help="Base máxima de cotización anual para régimen general."
+        )
+
+    # IRPF
+    st.markdown("**Retención IRPF sobre nóminas**")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        fiscal["irpf_bajo"] = st.number_input(
+            "Tramo bajo < 15.000 € (%)", value=float(fiscal.get("irpf_bajo", 0.0)),
+            min_value=0.0, max_value=100.0, step=0.5, key="fiscal_irpf_bajo",
+        )
+    with col2:
+        fiscal["irpf_medio"] = st.number_input(
+            "Tramo medio 15.000–90.000 € (%)", value=float(fiscal.get("irpf_medio", 20.0)),
+            min_value=0.0, max_value=100.0, step=0.5, key="fiscal_irpf_medio",
+        )
+    with col3:
+        fiscal["irpf_alto"] = st.number_input(
+            "Tramo alto > 90.000 € (%)", value=float(fiscal.get("irpf_alto", 40.0)),
+            min_value=0.0, max_value=100.0, step=0.5, key="fiscal_irpf_alto",
+        )
 
     # Navegación
     st.markdown("---")

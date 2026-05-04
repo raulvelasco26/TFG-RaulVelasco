@@ -272,7 +272,7 @@ class TaxConfig:
     iva_inversiones: float = 0.21
     ss_autonomos_rate: float = 0.15
     ss_empresa_rate: float = 0.33
-    ss_trabajador_rate: float = 0.0647
+    ss_trabajador_rate: float = 0.065
     ss_tope_autonomos: float = 56640
     ss_tope_general: float = 56640
     irpf_bajo: float = 0.0

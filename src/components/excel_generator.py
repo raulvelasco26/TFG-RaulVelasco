@@ -98,6 +98,22 @@ def read_template(excel_bytes: bytes) -> dict:
         "fecha_inicio": vs(ws_idea["C13"]),
     }
 
+    # --- Fiscalidad ---
+    result["fiscalidad"] = {
+        "is_rate":           v(ws_hip["C9"], 0.25) * 100,
+        "iva_compras":       v(ws_hip["C10"], 0.21) * 100,
+        "iva_ventas":        v(ws_hip["C11"], 0.21) * 100,
+        "iva_inversiones":   v(ws_hip["C12"], 0.21) * 100,
+        "ss_autonomos_rate": v(ws_hip["C13"], 0.15) * 100,
+        "ss_tope_autonomos": v(ws_hip["E13"], 56640.0),
+        "ss_empresa_rate":   v(ws_hip["C14"], 0.33) * 100,
+        "ss_trabajador_rate":v(ws_hip["D14"], 0.065) * 100,
+        "ss_tope_general":   v(ws_hip["E14"], 56640.0),
+        "irpf_bajo":         v(ws_hip["C15"], 0.0) * 100,
+        "irpf_medio":        v(ws_hip["D15"], 0.20) * 100,
+        "irpf_alto":         v(ws_hip["E15"], 0.40) * 100,
+    }
+
     # --- CAPEX inicial (subvención no está en la plantilla; queda a 0) ---
     capex = {}
     for key, row in CAPEX_ROWS.items():
@@ -258,7 +274,7 @@ def fill_template(ss) -> bytes:
     ws_an = wb["ANALISIS "]    # trailing space
 
     _fill_idea(ws_idea, ss)
-    _fill_fiscal(ws_hip)
+    _fill_fiscal(ws_hip, ss)
     _fill_capex(ws_hip, ss)
     _fill_financiacion(ws_hip, ws_an, ss)
     _fill_opex(ws_hip, ss)
@@ -282,18 +298,22 @@ def _fill_idea(ws, ss):
     ws["C13"] = proyecto.get("fecha_inicio", "")
 
 
-def _fill_fiscal(ws):
-    """Escribe los parámetros fiscales por defecto en HIPOTESIS."""
-    ws["C9"] = 0.25    # IS
-    ws["C10"] = 0.21   # IVA compras
-    ws["C11"] = 0.21   # IVA ventas
-    ws["C12"] = 0.21   # IVA inversiones
-    ws["C13"] = 0.15   # SS autónomos
-    ws["C14"] = 0.33   # SS empresa (régimen general)
-    ws["D14"] = 0.0647 # SS trabajador
-    ws["C15"] = 0.0    # IRPF tramo bajo
-    ws["D15"] = 0.20   # IRPF tramo medio
-    ws["E15"] = 0.40   # IRPF tramo alto
+def _fill_fiscal(ws, ss):
+    """Escribe los parámetros fiscales en HIPOTESIS desde session_state."""
+    f = ss.get("fiscalidad", {})
+    ws["C9"]  = f.get("is_rate", 25.0) / 100
+    ws["C10"] = f.get("iva_compras", 21.0) / 100
+    ws["C11"] = f.get("iva_ventas", 21.0) / 100
+    ws["C12"] = f.get("iva_inversiones", 21.0) / 100
+    ws["C13"] = f.get("ss_autonomos_rate", 15.0) / 100
+    ws["D13"] = 0.0  # SS autónomos trabajador (siempre 0 en régimen especial)
+    ws["E13"] = f.get("ss_tope_autonomos", 56640.0)
+    ws["C14"] = f.get("ss_empresa_rate", 33.0) / 100
+    ws["D14"] = f.get("ss_trabajador_rate", 6.5) / 100
+    ws["E14"] = f.get("ss_tope_general", 56640.0)
+    ws["C15"] = f.get("irpf_bajo", 0.0) / 100
+    ws["D15"] = f.get("irpf_medio", 20.0) / 100
+    ws["E15"] = f.get("irpf_alto", 40.0) / 100
 
 
 def _fill_capex(ws, ss):
