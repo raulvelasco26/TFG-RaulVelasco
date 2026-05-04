@@ -1496,7 +1496,7 @@ def render_stage_inicio():
     2. **Explicaciones claras**: Si no entiendes algún concepto, te lo explicará
     3. **Sugerencias inteligentes**: Te propondrá valores típicos de tu sector
     4. **Cálculos automáticos**: Todo se calcula siguiendo la metodología PEF ToolBoard v2.0
-    5. **Excel profesional**: Al final, descargarás un archivo compatible con ENISA
+    5. **Excel profesional**: Al final, descargarás un archivo listo para presentar
 
     ---
 
@@ -1561,10 +1561,6 @@ def render_stage_inicio():
         validada en contextos educativos y profesionales que garantiza la rigurosidad
         de las proyecciones financieras.
 
-        **Compatibilidad:**
-
-        El archivo Excel generado es compatible con los requisitos de **ENISA**
-        (Empresa Nacional de Innovación) para solicitudes de financiación.
         """)
 
 
@@ -1944,7 +1940,7 @@ Por ejemplo:
                     proy_data["mes_inicio"] = pt_inicio
                 with col2:
                     pt_fin = st.number_input(
-                        "Mes fin proyecto (1-60)", value=proy_data["mes_fin"],
+                        "Mes fin proyecto (1-60)", value=max(proy_data["mes_fin"], pt_inicio),
                         min_value=pt_inicio, max_value=60, key=f"{proy_key}_fin"
                     )
                     proy_data["mes_fin"] = pt_fin
@@ -2116,7 +2112,7 @@ def render_stage_financiacion():
    - ¿Habrá ampliaciones de capital más adelante?
 
 2. 🏦 **Préstamos** (hasta 2)
-   - ¿Vas a pedir préstamos bancarios o de entidades como ENISA?
+   - ¿Vas a pedir préstamos bancarios o de otras entidades financieras?
    - Para cada préstamo necesito: importe, plazo, interés y si tiene carencia
 
 3. 💳 **Póliza de crédito**
@@ -4281,7 +4277,6 @@ def render_stage_analisis():
         **Características del archivo:**
         - Formato .xlsx compatible con Excel y LibreOffice
         - Fórmulas editables (puedes modificar hipótesis y ver resultados)
-        - Compatible con requisitos de **ENISA** para solicitudes de financiación
         - Gráficos automáticos de evolución
         """)
 
@@ -4296,7 +4291,6 @@ def render_stage_analisis():
             st.checkbox("Incluir análisis del asistente IA", value=True, key="export_analisis_ia")
         with col2:
             st.checkbox("Proteger celdas de fórmulas", value=False, key="export_proteger")
-            st.checkbox("Formato ENISA", value=True, key="export_enisa")
 
         st.markdown("---")
 

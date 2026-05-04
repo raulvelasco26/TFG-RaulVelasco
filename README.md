@@ -14,7 +14,6 @@ Aplicación web basada en inteligencia artificial que facilita la elaboración d
 - 🤖 **Interfaz conversacional** en español con LLM (GPT-4/Claude)
 - 💰 **Cálculos validados** basados en metodología PEF ToolBoard v2.0
 - 📊 **Proyecciones a 5 años** (60 meses)
-- ✅ **Compatible con ENISA** y entidades financieras
 - 🎁 **Completamente gratuito** y de código abierto
 
 ## 🚀 Instalación

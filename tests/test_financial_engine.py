@@ -612,7 +612,7 @@ class TestIntegracionCompleta:
             "capital_inicial": 30000,
             "prestamos": [
                 {
-                    "nombre": "Préstamo ENISA",
+                    "nombre": "Préstamo bancario",
                     "importe": 50000,
                     "mes_inicio": 1,
                     "meses_carencia": 12,
