@@ -1150,6 +1150,7 @@ def prepare_financial_engine():
 
     # Terrenos y fianzas no llevan IVA (0%) según metodología PEF
     capex_iva_cero = {"terrenos", "fianzas"}
+    iva_inv = fiscal.get("iva_inversiones", 21.0) / 100
 
     for key, nombre in capex_mapping.items():
         data = st.session_state.capex.get(key, {})
@@ -1161,7 +1162,7 @@ def prepare_financial_engine():
                 "vida_util_anos": data.get("anos", 5),
                 "mes_adquisicion": 1,
                 "subvencion": data.get("subvencion", 0),
-                "iva_rate": 0.0 if key in capex_iva_cero else 0.21,
+                "iva_rate": 0.0 if key in capex_iva_cero else iva_inv,
             })
 
     # Proyectos de inversión en años posteriores (son Inversiones estándar con mes_adquisicion > 1)
@@ -1173,7 +1174,8 @@ def prepare_financial_engine():
                 "importe": pi["importe"],
                 "vida_util_anos": pi.get("anos", 5),
                 "mes_adquisicion": pi.get("mes_adquisicion", 13),
-                "subvencion": pi.get("subvencion", 0)
+                "subvencion": pi.get("subvencion", 0),
+                "iva_rate": iva_inv,
             })
 
     engine.set_inversiones(inversiones)
@@ -1265,7 +1267,8 @@ def prepare_financial_engine():
                 importes.append(importes[-1] * (1 + inc / 100))
             gastos_fijos.append({
                 "concepto": nombre,
-                "importes_anuales": importes
+                "importes_anuales": importes,
+                "iva_rate": fiscal.get("iva_compras", 21.0) / 100,
             })
 
     # 4. Empleados (ahora con 3 etapas y incremento salarial)
@@ -1859,6 +1862,10 @@ Por ejemplo:
         st.caption("Estructura según hoja HIPOTESIS del Excel (filas 26-40)")
         st.info("💡 **Introduce los importes SIN IVA**. El IVA y la amortización se calculan automáticamente.")
 
+        _fiscal_capex = st.session_state.get("fiscalidad", {})
+        _iva_inv = _fiscal_capex.get("iva_inversiones", 21.0) / 100
+        _iva_inv_pct = _fiscal_capex.get("iva_inversiones", 21.0)
+
         # === INMOVILIZADO INTANGIBLE ===
         st.markdown("#### 🔷 Inmovilizado Intangible")
 
@@ -1871,7 +1878,7 @@ Por ejemplo:
         with cols[2]:
             st.markdown("**Años**")
         with cols[3]:
-            st.markdown("**IVA (21%)**")
+            st.markdown(f"**IVA ({_iva_inv_pct:.0f}%)**")
         with cols[4]:
             st.markdown("**Total**")
         with cols[5]:
@@ -1904,7 +1911,7 @@ Por ejemplo:
                 )
                 st.session_state.capex[key]["anos"] = anos
             with cols[3]:
-                iva = importe * 0.21
+                iva = importe * _iva_inv
                 st.text(f"{iva:,.0f} €")
             with cols[4]:
                 total = importe + iva
@@ -1925,7 +1932,7 @@ Por ejemplo:
         with cols[2]:
             st.markdown("**Años**")
         with cols[3]:
-            st.markdown("**IVA (21%)**")
+            st.markdown(f"**IVA ({_iva_inv_pct:.0f}% / 0%)**")
         with cols[4]:
             st.markdown("**Total**")
         with cols[5]:
@@ -1961,7 +1968,7 @@ Por ejemplo:
                 )
                 st.session_state.capex[key]["anos"] = anos
             with cols[3]:
-                iva = importe * 0.21
+                iva = importe * (0.0 if key in ("terrenos", "fianzas") else _iva_inv)
                 st.text(f"{iva:,.0f} €")
             with cols[4]:
                 total = importe + iva
@@ -2028,8 +2035,8 @@ Por ejemplo:
                     proy_data["observaciones"] = pi_obs
                 with col3:
                     if pi_importe > 0:
-                        pi_iva = pi_importe * 0.21
-                        st.text(f"IVA (21%): {pi_iva:,.0f} €")
+                        pi_iva = pi_importe * _iva_inv
+                        st.text(f"IVA ({_iva_inv_pct:.0f}%): {pi_iva:,.0f} €")
                         st.text(f"Total: {pi_importe + pi_iva:,.0f} €")
                         pi_mes_fin_amort = pi_mes + pi_anos * 12
                         st.text(f"Fin amort: mes {pi_mes_fin_amort}")
@@ -2115,7 +2122,8 @@ Por ejemplo:
         )
 
         total_importe = total_intangible + total_material + total_fianzas + total_proy_inv
-        total_iva = (total_intangible + total_material + total_proy_inv) * 0.21  # Fianzas y proy. trabajo no llevan IVA
+        _terrenos_imp = st.session_state.capex["terrenos"]["importe"]
+        total_iva = (total_intangible + (total_material - _terrenos_imp) + total_proy_inv) * _iva_inv
         total_con_iva = total_importe + total_iva
 
         col1, col2, col3, col4 = st.columns(4)
@@ -2124,7 +2132,7 @@ Por ejemplo:
         with col2:
             st.metric("Total Material", f"{total_material:,.0f} €")
         with col3:
-            st.metric("IVA Soportado", f"{total_iva:,.0f} €", help="Calculado automáticamente al 21%")
+            st.metric("IVA Soportado", f"{total_iva:,.0f} €", help=f"IVA inversiones ({_iva_inv_pct:.0f}%). Terrenos y fianzas: 0%")
         with col4:
             st.metric("TOTAL con IVA", f"{total_con_iva:,.0f} €", help="Desembolso real necesario")
 
@@ -2693,8 +2701,8 @@ Puedes decirme cosas como:
             with cols[1]:
                 ano1 = st.number_input(
                     f"Año 1 - {key}",
-                    value=gf_data["ano1"],
-                    min_value=0, step=100, label_visibility="collapsed"
+                    value=float(gf_data["ano1"]),
+                    min_value=0.0, step=100.0, label_visibility="collapsed"
                 )
                 gf_data["ano1"] = ano1
 
@@ -2742,15 +2750,19 @@ Puedes decirme cosas como:
         st.markdown("### 👥 Gastos Fijos por Nómina")
         st.caption("Estructura según hoja HIPOTESIS del Excel (filas 90-104)")
 
-        # Configuración fiscal (valores fijos legales - no editables)
+        # Configuración fiscal — leída del estado fiscal configurable
         st.markdown("#### ⚙️ Configuración Seguridad Social")
-        st.caption("Valores legales establecidos - se calculan automáticamente")
+        st.caption("Valores configurados en Etapa 1 → Configuración Fiscal")
 
-        # Valores fijos (no editables)
-        ss_auto = 15.0   # SS Autónomos %
-        ss_emp = 33.0    # SS Empresa % (régimen general)
-        ss_trab = 6.47   # SS Trabajador % (régimen general)
-        ss_tope = 56640  # Base máxima cotización anual
+        _fiscal_nom = st.session_state.get("fiscalidad", {})
+        ss_auto = _fiscal_nom.get("ss_autonomos_rate", 15.0)
+        ss_emp  = _fiscal_nom.get("ss_empresa_rate", 33.0)
+        ss_trab = _fiscal_nom.get("ss_trabajador_rate", 6.5)
+        ss_tope_aut = _fiscal_nom.get("ss_tope_autonomos", 56640.0)
+        ss_tope_gen = _fiscal_nom.get("ss_tope_general", 56640.0)
+        irpf_bajo  = _fiscal_nom.get("irpf_bajo", 0.0)
+        irpf_medio = _fiscal_nom.get("irpf_medio", 20.0)
+        irpf_alto  = _fiscal_nom.get("irpf_alto", 40.0)
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -2760,7 +2772,7 @@ Puedes decirme cosas como:
         with col3:
             st.metric("SS Trabajador", f"{ss_trab}%", help="Régimen general - cargo trabajador")
         with col4:
-            st.metric("Tope SS", f"{ss_tope:,.0f} €", help="Base máxima de cotización anual")
+            st.metric("Tope SS general", f"{ss_tope_gen:,.0f} €", help="Base máxima de cotización anual")
 
         st.markdown("---")
 
@@ -2768,20 +2780,21 @@ Puedes decirme cosas como:
         def calcular_costes_empleado(salario, es_autonomo=False):
             if salario <= 0:
                 return 0, 0, 0
-            base = min(salario, ss_tope)
             if es_autonomo:
+                base = min(salario, ss_tope_aut)
                 ss_empresa = base * (ss_auto / 100)
                 ss_trabajador = 0
             else:
+                base = min(salario, ss_tope_gen)
                 ss_empresa = base * (ss_emp / 100)
                 ss_trabajador = base * (ss_trab / 100)
             # IRPF por tramos
             if salario < 15000:
-                irpf = 0
+                irpf = salario * (irpf_bajo / 100)
             elif salario < 90000:
-                irpf = salario * 0.20
+                irpf = salario * (irpf_medio / 100)
             else:
-                irpf = salario * 0.40
+                irpf = salario * (irpf_alto / 100)
             return ss_empresa, ss_trabajador, irpf
 
         perfiles = [

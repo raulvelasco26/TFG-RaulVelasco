@@ -1071,14 +1071,14 @@ class FinancialEngine:
             # Acreedores a corto plazo: SS, IRPF e IVA del mes actual pendientes de liquidar
             ss_acr = (self.df_nominas['ss_empresa'][i] + self.df_nominas['ss_trabajador'][i])
             irpf_acr = self.df_nominas['irpf'][i]
+            # IVA neto: positivo = hacienda acreedora (a pagar), negativo = hacienda deudora (a cobrar)
             iva_neto = getattr(self, 'iva_neto_mensual', [0.0] * self.months)[i]
-            iva_acreedora = max(0.0, iva_neto)   # Hacienda acreedora (IVA a pagar)
-            iva_deudora = max(0.0, -iva_neto)    # Hacienda deudora IVA (a cobrar, va a AC)
 
             # Calcular totales
             data['activo_no_corriente'][i] = data['inmovilizado'][i]
-            # Activo: tesorería + crédito fiscal IS (Realizable de IS) + IVA deudora
-            data['activo_corriente'][i] = data['tesoreria'][i] + is_credito + iva_deudora
+            # Activo corriente: tesorería + crédito fiscal IS (Realizable de IS)
+            # El IVA deudor va como negativo en pasivo corriente (igual que en el Excel)
+            data['activo_corriente'][i] = data['tesoreria'][i] + is_credito
             data['activo_total'][i] = data['activo_no_corriente'][i] + data['activo_corriente'][i]
 
             data['patrimonio_neto'][i] = (data['capital'][i] + data['resultado_acumulado'][i] +
@@ -1086,11 +1086,11 @@ class FinancialEngine:
 
             data['pasivo_no_corriente'][i] = data['deuda_largo_plazo'][i]
             # Pasivo corriente: deudas CP + póliza + crédito fiscal IS (simétrico al activo)
-            # + IS payable del mes actual (Hacienda acreedora IS, se paga el mes siguiente)
-            # + SS, IRPF, IVA del mes actual
+            # + IS payable del mes actual + SS + IRPF
+            # + iva_neto: puede ser negativo (deudora) → reduce pasivo, como en el Excel
             data['pasivo_corriente'][i] = (data['deuda_corto_plazo'][i] +
                                            data['poliza_credito'][i] + is_credito + is_payable +
-                                           ss_acr + irpf_acr + iva_acreedora)
+                                           ss_acr + irpf_acr + iva_neto)
             data['pasivo_total'][i] = data['pasivo_no_corriente'][i] + data['pasivo_corriente'][i]
 
             data['pn_pasivo_total'][i] = data['patrimonio_neto'][i] + data['pasivo_total'][i]
