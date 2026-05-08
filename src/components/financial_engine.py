@@ -499,11 +499,11 @@ class FinancialEngine:
             iva_mes = 0.0
             imputacion_sub_mes = 0.0
 
-            # Inversiones normales (amortización empieza el mismo mes de adquisición)
+            # Inversiones: inicio mes 1 usa >=; inversiones posteriores usan > (Excel: D4>inicio_inv)
             for inv in self.inversiones:
-                if inv.mes_adquisicion <= mes <= inv.mes_fin_amortizacion:
+                amort_start = (mes > inv.mes_adquisicion) if inv.mes_adquisicion > 1 else (mes >= 1)
+                if amort_start and mes <= inv.mes_fin_amortizacion:
                     amort_mes += inv.amortizacion_mensual
-                    # Imputación de subvención de esta inversión
                     if inv.subvencion > 0 and inv.vida_util_anos > 0:
                         imputacion_sub_mes += inv.subvencion / (inv.vida_util_anos * 12)
 
@@ -809,7 +809,7 @@ class FinancialEngine:
                 if inv.subvencion > 0 and inv.mes_adquisicion == i + 1:
                     cobros_sub += inv.subvencion
             for proy in self.proyectos_trabajo:
-                if proy.subvencion > 0 and proy.mes_fin_proyecto == i + 1:
+                if proy.subvencion > 0 and proy.mes_fin_proyecto == i:
                     cobros_sub += proy.subvencion
 
             # Calcular intereses de la póliza del mes anterior (se pagan este mes)
@@ -939,13 +939,15 @@ class FinancialEngine:
             if inv.mes_adquisicion > 1 and inv.mes_adquisicion <= self.months:
                 data['pagos_inversiones'][inv.mes_adquisicion - 1] += inv.total_con_iva
 
-        # Cobros subvenciones: todas las inversiones en su mes (incluyendo mes 1)
+        # Cobros subvenciones inversiones: en mes_adquisicion
         for inv in self.inversiones:
             if inv.subvencion > 0 and inv.mes_adquisicion <= self.months:
                 data['cobros_subvenciones'][inv.mes_adquisicion - 1] += inv.subvencion
+        # Cobros subvenciones TPA: en mes_fin_proyecto+1 (Excel: inicio_subv_activ1 = J53 = J52 = H52+1)
         for proy in self.proyectos_trabajo:
-            if proy.subvencion > 0 and proy.mes_fin_proyecto <= self.months:
-                data['cobros_subvenciones'][proy.mes_fin_proyecto - 1] += proy.subvencion
+            mes_cobro = proy.mes_fin_proyecto + 1
+            if proy.subvencion > 0 and mes_cobro <= self.months:
+                data['cobros_subvenciones'][mes_cobro - 1] += proy.subvencion
 
         # Pagos préstamos (capital)
         data['pagos_prestamos'] = self.df_financiacion['pago_capital_prestamos'].values.copy()
@@ -1044,7 +1046,7 @@ class FinancialEngine:
             # Subvenciones de capital: solo las ya cobradas (timing correcto para cuadrar balance)
             # Inversiones: cobro en mes_adquisicion; TPA: cobro en mes_fin_proyecto
             sub_recibidas = sum(inv.subvencion for inv in self.inversiones if inv.mes_adquisicion <= i + 1)
-            sub_recibidas += sum(p.subvencion for p in self.proyectos_trabajo if p.mes_fin_proyecto <= i + 1)
+            sub_recibidas += sum(p.subvencion for p in self.proyectos_trabajo if p.mes_fin_proyecto <= i)
             imputacion_acumulada = sum(self.cuenta_resultados['imputacion_subvenciones'][0:i+1])
             data['subvenciones_capital'][i] = sub_recibidas - imputacion_acumulada
 
