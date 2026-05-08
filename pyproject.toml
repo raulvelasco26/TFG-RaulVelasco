@@ -1,0 +1,95 @@
+# =============================================================================
+# pyproject.toml - Configuración del proyecto PEF AI Assistant
+# Estándar PEP 621 para packaging moderno de Python
+# =============================================================================
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "pef-ai-assistant"
+version = "1.0.0"
+description = "Asistente inteligente para la elaboración de Planes Económico-Financieros (PEF) con IA"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Raul Velasco Tello"},
+]
+maintainers = [
+    {name = "Raul Velasco Tello"},
+]
+keywords = ["pef", "financial-plan", "ai", "streamlit", "gpt-4", "claude"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "streamlit>=1.28.0",
+    "openai>=1.0.0",
+    "anthropic>=0.8.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "openpyxl>=3.1.0",
+    "python-dotenv>=1.0.0",
+    "plotly>=5.18.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.0",
+    "flake8>=6.0",
+]
+docker = [
+    "gunicorn>=21.2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/RaulVelasco/TFG-RaulVelasco"
+Documentation = "https://github.com/RaulVelasco/TFG-RaulVelasco#readme"
+Repository = "https://github.com/RaulVelasco/TFG-RaulVelasco"
+BugTracker = "https://github.com/RaulVelasco/TFG-RaulVelasco/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "components*", "utils*"]
+
+[tool.setuptools.package-data]
+"templates" = ["*.xlsx"]
+"resources" = ["*.jpg", "*.png", "*.ico"]
+".streamlit" = ["*.toml"]
+
+[project.scripts]
+pef-assistant = "src.app:main"
+
+# =============================================================================
+# Herramientas de desarrollo
+# =============================================================================
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*"]

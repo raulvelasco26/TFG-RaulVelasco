@@ -1,0 +1,31 @@
+# =============================================================================
+# Docker Compose - PEF AI Assistant
+# =============================================================================
+# Uso (desde la raíz del proyecto):
+#   1. Copia .env.example a .env y configura tu API key
+#   2. Ejecuta: docker-compose -f installation/docker-compose.yml up
+#   3. Abre: http://localhost:8501
+# =============================================================================
+
+version: '3.8'
+
+services:
+  pef-assistant:
+    build:
+      context: ..
+      dockerfile: installation/Dockerfile
+    container_name: pef-ai-assistant
+    ports:
+      - "8501:8501"
+    env_file:
+      - ../.env
+    volumes:
+      # Persistir archivos generados (Excel, etc.)
+      - ../output:/app/output
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

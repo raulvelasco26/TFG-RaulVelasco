@@ -16,13 +16,29 @@ Aplicación web basada en inteligencia artificial que facilita la elaboración d
 - 📊 **Proyecciones a 5 años** (60 meses)
 - 🎁 **Completamente gratuito** y de código abierto
 
-## 🚀 Instalación
+## 🚀 Instalación Rápida (Usuario Final)
 
-### Requisitos previos
-- Python 3.10+
-- Cuenta de OpenAI o Anthropic
+### Opción A: Windows (Recomendado)
 
-### Pasos
+1. **Descarga** el proyecto (ZIP o `git clone`)
+2. Haz **doble clic** en `installation/instalar_y_ejecutar.bat`
+3. ¡La aplicación se abre automáticamente en el navegador!
+4. Configura tu **API key** desde la **barra lateral** de la propia aplicación
+
+> **Requisito previo**: Python 3.10+ instalado ([descargar](https://www.python.org/downloads/))
+> ⚠️ Marca "Add Python to PATH" durante la instalación de Python
+
+### Opción B: Docker
+
+```bash
+# Configurar API key (opcional, se puede hacer desde la app)
+cp .env.example .env
+
+# Ejecutar (desde la raíz del proyecto)
+docker-compose -f installation/docker-compose.yml up
+```
+
+### Opción C: Instalación manual
 
 ```bash
 # Clonar repositorio
@@ -36,22 +52,29 @@ venv\Scripts\activate  # Windows
 
 # Instalar dependencias
 pip install -r requirements.txt
-
-# Configurar API key
-cp .env.example .env
-# Edita .env y añade tu OPENAI_API_KEY
 ```
 
 ## 🎯 Uso
 
 ```bash
+# Windows: doble clic en ejecutar_app.bat (raíz del proyecto)
+# O desde terminal:
 streamlit run src/app.py
 ```
+
+## 📦 Distribución
+
+Consulta [`installation/GUIA_DISTRIBUCION.md`](installation/GUIA_DISTRIBUCION.md) para opciones avanzadas de empaquetado y distribución (Docker, Streamlit Cloud, pip, etc.).
 
 ## 📁 Estructura
 
 ```
 TFG-RaulVelasco/
+├── installation/                      # 📦 Archivos de instalación/distribución
+│   ├── instalar_y_ejecutar.bat        # Instalador todo-en-uno (Windows)
+│   ├── Dockerfile                     # Imagen Docker
+│   ├── docker-compose.yml             # Despliegue Docker
+│   └── GUIA_DISTRIBUCION.md           # Guía de distribución
 ├── src/
 │   ├── app.py                        # Aplicación principal
 │   ├── config.py                     # Configuración
@@ -64,7 +87,10 @@ TFG-RaulVelasco/
 │       └── prompts.py
 ├── tests/
 ├── templates/
-├── docs/
+├── resources/
+├── .streamlit/
+├── ejecutar_app.bat                  # Launcher rápido (post-instalación)
+├── pyproject.toml                    # Packaging PEP 621
 └── requirements.txt
 ```
 

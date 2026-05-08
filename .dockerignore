@@ -1,0 +1,53 @@
+# =============================================================================
+# .dockerignore - Excluir archivos innecesarios del build de Docker
+# =============================================================================
+
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.eggs
+*.egg-info
+*.egg
+dist
+build
+venv
+.venv
+env
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+.claude
+
+# Testing
+tests/
+.pytest_cache
+.coverage
+htmlcov
+
+# Documentación
+*.md
+INSTRUCCIONES.txt
+LICENSE
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Otros
+.env
+.env.example
+*.bat
+*.command
+output/
+.DS_Store
+Thumbs.db

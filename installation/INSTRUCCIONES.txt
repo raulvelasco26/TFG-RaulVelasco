@@ -1,0 +1,58 @@
+================================================================================
+  PEF AI ASSISTANT - INSTRUCCIONES DE USO
+================================================================================
+
+INSTALACION (solo la primera vez):
+------------------------------------
+1. Haz doble clic en "setup.bat" (esta carpeta)
+2. El instalador:
+   - Comprueba que tienes Python 3.10 o superior
+   - Instala todas las dependencias en un entorno aislado
+   - Crea el icono "PEF AI Assistant" en tu escritorio
+3. Cierra la ventana cuando termine
+
+   Si no tienes Python: el instalador abrira la pagina de descarga
+   automaticamente. Instalalo marcando "Add Python to PATH".
+
+
+USAR LA APLICACION:
+--------------------
+1. Haz doble clic en el icono "PEF AI Assistant" del escritorio
+2. El navegador se abrira solo en unos segundos
+3. La aplicacion estara en: http://localhost:8501
+
+
+DETENER LA APLICACION:
+-----------------------
+- Busca en la barra de tareas la ventana minimizada
+- Haz clic en ella y pulsa Ctrl+C, o simplemente cierrala
+
+
+PROBLEMAS FRECUENTES:
+----------------------
+
+1. "La aplicacion no esta instalada todavia"
+   -> Ejecuta primero setup.bat
+
+2. "Python no encontrado"
+   -> Instala Python desde https://www.python.org/downloads/
+   -> Marca "Add Python to PATH" durante la instalacion
+
+3. La aplicacion no se abre en el navegador
+   -> Abre manualmente: http://localhost:8501
+
+4. "Puerto 8501 en uso"
+   -> Ya hay una instancia corriendo. Abre http://localhost:8501
+   -> O cierra la instancia anterior desde la barra de tareas
+
+
+REINSTALAR / ACTUALIZAR:
+--------------------------
+Si descargas una version nueva, vuelve a ejecutar setup.bat.
+Actualizara las dependencias sin borrar configuraciones.
+
+================================================================================
+TFG 2025-26 - Raul Velasco Tello
+Tutor: Jaume Teodoro i Sadurni
+Universitat Pompeu Fabra - TecnoCampus
+================================================================================
