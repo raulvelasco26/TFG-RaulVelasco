@@ -48,26 +48,60 @@ echo ""
 echo "  [2/3] Instalando dependencias (1-2 minutos)..."
 cd "$APP_DIR"
 
-# Comprobar que python3-venv está disponible
-if ! $PYTHON -m venv --help &>/dev/null; then
-    echo "  ERROR: Modulo venv no disponible."
-    echo "  Instalalo con: sudo apt install python3-venv"
+# Comprobar que requirements.txt existe
+if [ ! -f "requirements.txt" ]; then
+    echo "  ERROR: No se encuentra requirements.txt en $APP_DIR"
+    echo "  Asegurate de ejecutar este script desde la carpeta descomprimida del ZIP."
     exit 1
 fi
+
+# Comprobar que python3-venv esta REALMENTE disponible (no solo el modulo,
+# tambien ensurepip). En Debian/Ubuntu el modulo venv viene con Python pero
+# sin pip integrado hasta que se instala python3-venv.
+TEST_VENV=$(mktemp -d)
+if ! $PYTHON -m venv "$TEST_VENV" &>/dev/null; then
+    rm -rf "$TEST_VENV"
+    echo "  ERROR: El paquete python3-venv no esta instalado completamente."
+    echo ""
+    echo "  Instalalo con uno de estos comandos:"
+    echo "    sudo apt install python${PY_VER}-venv"
+    echo "    sudo apt install python3-venv"
+    echo ""
+    echo "  Despues, vuelve a ejecutar:  bash INSTALAR.sh"
+    exit 1
+fi
+rm -rf "$TEST_VENV"
 
 if [ -d "venv" ]; then
     echo "  OK - Entorno virtual existente, actualizando..."
 else
-    $PYTHON -m venv venv
+    if ! $PYTHON -m venv venv; then
+        echo "  ERROR: No se pudo crear el entorno virtual."
+        exit 1
+    fi
 fi
 
+# Activar venv (con comprobacion explicita)
+if [ ! -f "venv/bin/activate" ]; then
+    echo "  ERROR: El entorno virtual existente esta corrupto."
+    echo "  Borralo con:  rm -rf venv"
+    echo "  Y vuelve a ejecutar:  bash INSTALAR.sh"
+    exit 1
+fi
 source venv/bin/activate
+
 pip install --upgrade pip -q 2>/dev/null
 pip install -r requirements.txt -q
 
 if [ $? -ne 0 ]; then
+    echo ""
     echo "  ERROR: Fallo al instalar dependencias."
-    echo "  Comprueba tu conexion a internet e intentalo de nuevo."
+    echo "  Posibles causas:"
+    echo "    - Sin conexion a internet"
+    echo "    - Paquetes incompatibles con Python $PY_VER"
+    echo ""
+    echo "  Para ver el error completo, ejecuta:"
+    echo "    source venv/bin/activate && pip install -r requirements.txt"
     exit 1
 fi
 echo "  OK - Dependencias instaladas"
@@ -114,6 +148,9 @@ Type=Application
 DESKTOP_EOF
     chmod +x "$DESKTOP_FILE"
     echo "  OK - Acceso directo creado en el escritorio"
+    echo ""
+    echo "  NOTA: en GNOME/Ubuntu modernos, la primera vez que hagas doble"
+    echo "        clic en el icono puede pedirte 'Permitir lanzamiento'."
 else
     echo "  OK - Lanzador creado: lanzar.sh"
     echo "       Ejecuta con: bash lanzar.sh"
