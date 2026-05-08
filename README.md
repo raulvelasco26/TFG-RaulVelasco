@@ -108,7 +108,7 @@ TFG-RaulVelasco/
 - [x] Motor de cálculo financiero (Feb-Mar 2026)
 - [x] Integración LLM (Mar 2026)
 - [x] Generador Excel (Mar-Abr 2026)
-- [ ] Testing (Abr 2026)
+- [x] Testing (Abr 2026)
 - [ ] Defensa TFG (Jun 2026)
 
 ## 📄 Licencia
