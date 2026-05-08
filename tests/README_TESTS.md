@@ -1,164 +1,106 @@
-# Suite de Tests Exhaustivos - PEF AI Assistant
+# Suite de Tests - PEF AI Assistant
 
 ## Descripción
 
-Esta suite de tests verifica que el motor financiero de la aplicación Python reproduce fielmente los cálculos del template Excel PEF ToolBoard v2.0.
+Esta suite verifica que el motor financiero reproduce fielmente los cálculos del template Excel PEF ToolBoard v2.0. Hay tres tipos de tests:
 
-## Cobertura de Tests
+- **Tests unitarios**: lógica interna de clases y cálculos aislados
+- **Tests de regresión (golden)**: el motor produce los mismos valores que el Excel de referencia
+- **Tests de casos límite (edge cases)**: comportamientos en los bordes del horizonte de 60 meses
 
-### 1. Tests de Amortización de Inversiones (`test_excel_comparison.py`)
-- ✅ Amortización lineal simple
-- ✅ Inmovilizado neto que decrece correctamente
-- ✅ Múltiples inversiones con diferentes períodos
-- ✅ Inversiones adquiridas en meses posteriores
-- ✅ IVA soportado en inversiones
-- ✅ Imputación de subvenciones proporcional
+## Archivos
 
-### 2. Tests de Préstamos y Financiación
-- ✅ Cálculo de cuota francesa
-- ✅ Período de carencia (solo intereses)
-- ✅ Préstamos sin intereses
-- ✅ Amortización total correcta
-- ✅ Clasificación de deuda en corto y largo plazo
+| Archivo | Tests | Descripción |
+|---|---|---|
+| `test_financial_engine.py` | 56 | Tests unitarios de `Inversion`, `Prestamo` y clases base |
+| `test_excel_comparison.py` | 44 | Tests unitarios de componentes del motor (P&L, CF, Balance) |
+| `test_validators.py` | 9 | Tests de validación de inputs |
+| `test_golden.py` | 6 | Regresión contra `fixtures/pef_test.xlsx` |
+| `test_edge_cases.py` | 13 | Casos límite con datos sintéticos |
 
-### 3. Tests de Nóminas y Personal
-- ✅ Coste empresa en régimen general
-- ✅ Coste de autónomos
-- ✅ Tope de cotización a la Seguridad Social
-- ✅ IRPF por tramos (bajo, medio, alto)
-- ✅ Empleados temporales (alta/baja parcial)
-- ✅ Múltiples trabajadores del mismo perfil
+**Total: 128 tests — todos pasan ✅**
 
-### 4. Tests de Ingresos y Ventas
-- ✅ Ventas con SOM (Share of Market) creciente
-- ✅ Incremento de precios año a año
-- ✅ Costes variables sobre ventas
-- ✅ IVA repercutido
+## Ejecución
 
-### 5. Tests de Gastos Fijos (OPEX)
-- ✅ Gastos sin incremento anual
-- ✅ Gastos con incremento compuesto
-- ✅ Distribución mensual correcta
-
-### 6. Tests de Cuenta de Resultados (P&L)
-- ✅ Cálculo del margen comercial
-- ✅ Cálculo del EBITDA
-- ✅ Cálculo del EBIT con amortizaciones
-- ✅ Impuesto de Sociedades con crédito fiscal (compensación de pérdidas)
-- ✅ Resultado acumulado mes a mes
-
-### 7. Tests de Flujo de Caja (Cash Flow)
-- ✅ Cobros de clientes incluyen IVA
-- ✅ Pagos de IVA a mes vencido
-- ✅ Pagos de SS al mes siguiente
-- ✅ Pagos de IRPF al mes siguiente
-- ✅ Póliza de crédito con déficit
-- ✅ Tesorería disponible nunca negativa
-- ✅ Cálculo del saldo inicial
-
-### 8. Tests de Balance
-- ✅ Ecuación fundamental: Activo = PN + Pasivo
-- ✅ Patrimonio neto incluye resultado acumulado
-- ✅ Deuda total decrece con amortización
-
-### 9. Tests de Proyectos de Trabajo Propio (I+D)
-- ✅ Ingresos durante el proyecto
-- ✅ Amortización después de activación
-
-### 10. Tests de Integración Completos
-- ✅ Startup sin financiación externa
-- ✅ Casos con subvenciones
-- ✅ Coherencia entre P&L, CF y Balance
-
-## Ejecución de Tests
-
-### Ejecutar todos los tests
 ```bash
+# Todos los tests
 python -m pytest tests/ -v
-```
 
-### Ejecutar solo los tests de comparación con Excel
-```bash
-python -m pytest tests/test_excel_comparison.py -v
-```
+# Solo regresión + edge cases (los más relevantes para el motor)
+python -m pytest tests/test_golden.py tests/test_edge_cases.py -v
 
-### Ejecutar tests de un módulo específico
-```bash
-# Tests de amortización
+# Un módulo concreto
 python -m pytest tests/test_excel_comparison.py::TestAmortizacionInversiones -v
 
-# Tests de préstamos
-python -m pytest tests/test_excel_comparison.py::TestPrestamosYFinanciacion -v
-
-# Tests de nóminas
-python -m pytest tests/test_excel_comparison.py::TestNominasYPersonal -v
-```
-
-### Ejecutar con reporte de cobertura
-```bash
+# Con cobertura
 python -m pytest tests/ --cov=src/components --cov-report=html
 ```
 
-## Resultados
+## Tests de Regresión (`test_golden.py`)
 
-**Total de tests:** 109
-**Estado:** ✅ Todos los tests pasan correctamente
+Carga `fixtures/pef_test.xlsx` con `read_template`, ejecuta el motor y compara contra valores verificados manualmente en Excel. Tolerancia: ±1€.
 
-### Desglose por archivo:
-- `test_excel_comparison.py`: 44 tests ✅
-- `test_financial_engine.py`: 56 tests ✅
-- `test_validators.py`: 9 tests ✅
+| Test | Qué verifica |
+|---|---|
+| `test_amortizaciones_anuales` | Amortizaciones años 1–5 coinciden con Excel |
+| `test_imputacion_subvenciones_anuales` | Imputación de subvenciones años 1–5 |
+| `test_cf_neto_anual` | CF neto anual años 1–5 |
+| `test_cobros_subvenciones_tpa_en_ano2` | La subvención TPA se cobra en año 2 (mes 13), nunca en año 1 |
+| `test_total_activo_anual` | Activo total fin de año 1–5 |
+| `test_balance_cuadra_todos_los_anos` | Activo = PN + Pasivo en todos los años |
 
-## Verificación de Precisión
+## Tests de Casos Límite (`test_edge_cases.py`)
 
-Los tests verifican:
+Construyen engines ad-hoc con datos sintéticos. No necesitan el Excel.
 
-1. **Precisión numérica:** Tolerancia de ±0.01€ en cálculos financieros
-2. **Coherencia:** Los valores fluyen correctamente entre estados financieros
-3. **Reglas de negocio:** Implementación correcta de:
-   - Sistema de amortización lineal
-   - Sistema francés de amortización de préstamos
-   - Liquidación fiscal (IVA, SS, IRPF, IS)
-   - Compensación de pérdidas (crédito fiscal)
-   - Póliza de crédito automática
+### Motor vacío
+- El motor no falla sin ningún dato de entrada
+- El balance cuadra incluso sin operaciones
 
-## Casos de Prueba Clave
+### Subvención TPA (timing crítico)
+- `mes_fin=60`: el cobro caería en mes 61 (fuera del horizonte) → no aparece en CF
+- `mes_fin=59`: el cobro es en mes 60 (último mes) → sí aparece
+- `mes_fin=12`: el cobro es en mes 13 → pertenece al año 2, no al año 1
 
-### Caso 1: Amortización de Préstamos
-```python
-# Préstamo de 10,000€ a 12 meses al 12% anual
-# Verifica: cuota francesa constante, intereses decrecientes, capital creciente
-```
+### Amortización de inversiones adicionales
+- Inversión en mes 59: solo amortiza 1 mes dentro del horizonte
+- CAPEX inicial (mes_adq=1): amortiza desde mes 1 inclusive
+- Inversión adicional (mes_adq>1): el mes de adquisición NO amortiza, el siguiente sí
 
-### Caso 2: Crédito Fiscal por Pérdidas
-```python
-# Empresa con pérdidas iniciales que genera beneficio después
-# Verifica: IS = 0 en pérdidas, compensación en beneficios futuros
-```
+### Umbrales IRPF
+- Salario < 15.000€ → tramo bajo (0% por defecto)
+- 15.000€ ≤ salario < 90.000€ → tramo medio (20%)
+- Salario ≥ 90.000€ → tramo alto (40%)
 
-### Caso 3: Balance Equilibrado
-```python
-# En todos los meses: Activo = Patrimonio Neto + Pasivo
-# Tolerancia: ±1€ por redondeos
-```
+### Préstamos
+- Préstamo al 0%: total devuelto = importe exacto
+- Período de carencia: solo intereses, capital = 0
+
+## Infraestructura de Tests
+
+### `engine_factory.py`
+Construye un `FinancialEngine` a partir de un `dict` con la misma estructura que `st.session_state`, sin dependencia de Streamlit. Permite usar el motor en tests.
+
+### `conftest.py`
+Fixture `golden_results` con scope de sesión: carga el Excel de referencia una sola vez y devuelve resúmenes anuales de P&L, CF y Balance.
+
+### `fixtures/pef_test.xlsx`
+Excel de referencia generado con la aplicación. Contiene datos de prueba con inversiones, TPA, préstamos e ingresos para ejercitar los cálculos más complejos.
+
+## Convenciones de Timing (replicadas del Excel)
+
+| Concepto | Regla |
+|---|---|
+| Amortización CAPEX inicial (mes_adq=1) | Empieza en el mismo mes de adquisición |
+| Amortización inversión adicional (mes_adq>1) | Empieza el mes siguiente al de adquisición |
+| Cobro subvención TPA | En `mes_fin_proyecto + 1` |
+| Primer pago de préstamo | Un mes después del inicio |
+| Liquidación IVA | A mes vencido |
+| Pago SS e IRPF | Mes siguiente al devengo |
 
 ## Mantenimiento
 
-Los tests deben actualizarse cuando:
-1. Se modifique el motor financiero (`financial_engine.py`)
-2. Cambien las reglas fiscales o contables
-3. Se detecten discrepancias con el Excel
-
-## Notas Técnicas
-
-### Convenciones de Timing
-- **Préstamos:** Primer pago un mes después del inicio
-- **IVA:** Liquidación a mes vencido
-- **SS e IRPF:** Pago al mes siguiente
-- **IS:** Pago con un mes de retraso
-- **Inversiones mes 1:** Se pagan en el período 0 (saldo inicial)
-
-### Tolerancias de Redondeo
-- Cálculos mensuales: ±0.01€
-- Balance: ±1€ (acumulación de redondeos)
-- Totales anuales: ±1€
+Actualizar cuando:
+- Se modifique `financial_engine.py` con cambios en la lógica de cálculo
+- Cambien reglas fiscales o contables en la metodología PEF
+- Se genere un nuevo Excel de referencia con datos más representativos (reemplazar `fixtures/pef_test.xlsx` y actualizar los valores en `test_golden.py`)
