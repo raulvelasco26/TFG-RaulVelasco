@@ -18,46 +18,42 @@ Aplicación web basada en inteligencia artificial que facilita la elaboración d
 
 ## 🚀 Instalación Rápida (Usuario Final)
 
-### Opción A: Windows (Recomendado)
+1. Descarga `PEF-AI-Assistant-v1.0.zip` desde Releases y descomprime
+2. Ejecuta el instalador de tu sistema operativo:
 
-1. **Descarga** el proyecto (ZIP o `git clone`)
-2. Haz **doble clic** en `installation/instalar_y_ejecutar.bat`
-3. ¡La aplicación se abre automáticamente en el navegador!
-4. Configura tu **API key** desde la **barra lateral** de la propia aplicación
+| SO | Archivo | Cómo |
+|---|---|---|
+| Windows | `INSTALAR.bat` | Doble clic |
+| Mac | `INSTALAR.command` | Doble clic en Finder |
+| Linux | `INSTALAR.sh` | `bash INSTALAR.sh` en terminal |
 
-> **Requisito previo**: Python 3.10+ instalado ([descargar](https://www.python.org/downloads/))
-> ⚠️ Marca "Add Python to PATH" durante la instalación de Python
+El instalador crea un entorno virtual, instala las dependencias y deja un acceso directo en el escritorio. A partir de ahí, un clic abre la app en el navegador.
+
+> **Requisito:** Python 3.10+. Si no lo tienes, el instalador abre la página de descarga automáticamente.  
+> **Mac:** la primera vez macOS puede pedir permiso en Ajustes → Privacidad y Seguridad.
 
 ### Opción B: Docker
 
 ```bash
-# Configurar API key (opcional, se puede hacer desde la app)
-cp .env.example .env
-
-# Ejecutar (desde la raíz del proyecto)
 docker-compose -f installation/docker-compose.yml up
 ```
 
 ### Opción C: Instalación manual
 
 ```bash
-# Clonar repositorio
 git clone https://github.com/tu-usuario/TFG-RaulVelasco.git
 cd TFG-RaulVelasco
-
-# Crear entorno virtual
 python -m venv venv
-venv\Scripts\activate  # Windows
-# source venv/bin/activate  # macOS/Linux
-
-# Instalar dependencias
+venv\Scripts\activate     # Windows
+source venv/bin/activate  # Mac/Linux
 pip install -r requirements.txt
+streamlit run src/app.py
 ```
 
 ## 🎯 Uso
 
 ```bash
-# Windows: doble clic en ejecutar_app.bat (raíz del proyecto)
+# Doble clic en el acceso directo del escritorio (tras instalar)
 # O desde terminal:
 streamlit run src/app.py
 ```
@@ -70,27 +66,15 @@ Consulta [`installation/GUIA_DISTRIBUCION.md`](installation/GUIA_DISTRIBUCION.md
 
 ```
 TFG-RaulVelasco/
-├── installation/                      # 📦 Archivos de instalación/distribución
-│   ├── instalar_y_ejecutar.bat        # Instalador todo-en-uno (Windows)
-│   ├── Dockerfile                     # Imagen Docker
-│   ├── docker-compose.yml             # Despliegue Docker
-│   └── GUIA_DISTRIBUCION.md           # Guía de distribución
-├── src/
-│   ├── app.py                        # Aplicación principal
-│   ├── config.py                     # Configuración
-│   ├── components/
-│   │   ├── conversation_manager.py   # Gestor LLM
-│   │   ├── financial_engine.py       # Motor de cálculo
-│   │   └── excel_generator.py        # Generador Excel
+├── INSTALAR.bat / .command / .sh   <- instaladores por SO
+├── src/                            <- código fuente
+│   ├── app.py
+│   ├── components/                 <- motor de cálculo, Excel, LLM
 │   └── utils/
-│       ├── validators.py
-│       └── prompts.py
-├── tests/
-├── templates/
+├── tests/                          <- batería de tests
+├── installation/                   <- scripts de distribución y Docker
+├── templates/                      <- plantilla Excel PEF ToolBoard
 ├── resources/
-├── .streamlit/
-├── ejecutar_app.bat                  # Launcher rápido (post-instalación)
-├── pyproject.toml                    # Packaging PEP 621
 └── requirements.txt
 ```
 
