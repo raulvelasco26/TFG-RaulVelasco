@@ -4,15 +4,24 @@
 
 INSTALACION (solo la primera vez):
 ------------------------------------
-1. Haz doble clic en "setup.bat" (esta carpeta)
-2. El instalador:
-   - Comprueba que tienes Python 3.10 o superior
-   - Instala todas las dependencias en un entorno aislado
-   - Crea el icono "PEF AI Assistant" en tu escritorio
-3. Cierra la ventana cuando termine
+Ejecuta el instalador segun tu sistema operativo:
 
-   Si no tienes Python: el instalador abrira la pagina de descarga
-   automaticamente. Instalalo marcando "Add Python to PATH".
+  Windows  ->  doble clic en  INSTALAR.bat
+  Mac      ->  doble clic en  INSTALAR.command
+  Linux    ->  abre terminal y ejecuta:  bash INSTALAR.sh
+
+El instalador:
+  - Comprueba que tienes Python 3.10 o superior
+  - Instala todas las dependencias en un entorno aislado (no toca tu sistema)
+  - Crea el icono "PEF AI Assistant" en tu escritorio
+
+NOTA MAC: la primera vez macOS puede bloquear el archivo. Ve a
+Ajustes -> Privacidad y Seguridad -> "Abrir de todas formas".
+
+Si no tienes Python instalado:
+  Windows/Mac -> https://www.python.org/downloads/
+                 Marca "Add Python to PATH" durante la instalacion.
+  Linux       -> sudo apt install python3 python3-venv  (Ubuntu/Debian)
 
 
 USAR LA APLICACION:
@@ -24,31 +33,32 @@ USAR LA APLICACION:
 
 DETENER LA APLICACION:
 -----------------------
-- Busca en la barra de tareas la ventana minimizada
-- Haz clic en ella y pulsa Ctrl+C, o simplemente cierrala
+Windows -> busca la ventana minimizada en la barra de tareas y cierrala
+Mac     -> cierra la ventana de Terminal que se abrio al lanzar
+Linux   -> cierra la terminal o pulsa Ctrl+C
 
 
 PROBLEMAS FRECUENTES:
 ----------------------
 
 1. "La aplicacion no esta instalada todavia"
-   -> Ejecuta primero setup.bat
+   -> Ejecuta primero el INSTALAR de tu sistema operativo
 
 2. "Python no encontrado"
-   -> Instala Python desde https://www.python.org/downloads/
-   -> Marca "Add Python to PATH" durante la instalacion
+   -> Instala Python 3.10+ desde https://www.python.org/downloads/
+   -> En Windows marca "Add Python to PATH" durante la instalacion
 
 3. La aplicacion no se abre en el navegador
    -> Abre manualmente: http://localhost:8501
 
 4. "Puerto 8501 en uso"
    -> Ya hay una instancia corriendo. Abre http://localhost:8501
-   -> O cierra la instancia anterior desde la barra de tareas
+   -> O cierra la instancia anterior
 
 
 REINSTALAR / ACTUALIZAR:
 --------------------------
-Si descargas una version nueva, vuelve a ejecutar setup.bat.
+Si descargas una version nueva, vuelve a ejecutar el instalador de tu SO.
 Actualizara las dependencias sin borrar configuraciones.
 
 ================================================================================
