@@ -213,10 +213,14 @@ def read_template(excel_bytes: bytes) -> dict:
     result["opex"] = {"gastos_fijos": gastos_fijos, "empleados": []}
 
     # --- Nóminas (empleados_data) ---
+    etapa_socios_rows = {1: 90, 2: 95, 3: 100}
     emp_data = {}
     for etapa in [1, 2, 3]:
+        socios_row = etapa_socios_rows[etapa]
+        default_inc = 0.02 if etapa < 3 else 0.03
+        inc_raw = v(ws_hip[f"N{socios_row}"], default_inc)
         emp_data[etapa] = {
-            "incremento_salario": 2.0 if etapa < 3 else 3.0,
+            "incremento_salario": float(inc_raw) * 100,
             "perfiles": {},
         }
     for (etapa, key), row in NOMINAS_ROWS.items():
@@ -429,6 +433,7 @@ def _fill_opex(ws, ss):
 def _fill_nominas(ws, ss):
     """Rellena la tabla de nóminas (3 etapas × 5 perfiles)."""
     emp_data = ss.get("empleados_data", {})
+    etapa_socios_rows = {1: 90, 2: 95, 3: 100}
 
     for (etapa, key), row in NOMINAS_ROWS.items():
         etapa_data = emp_data.get(etapa, {})
@@ -438,6 +443,11 @@ def _fill_nominas(ws, ss):
         ws[f"E{row}"] = perfil.get("alta", 1)
         ws[f"F{row}"] = perfil.get("baja", 60)
         ws[f"G{row}"] = perfil.get("salario", 0)
+
+    for etapa, socios_row in etapa_socios_rows.items():
+        etapa_data = emp_data.get(etapa, {})
+        inc_pct = etapa_data.get("incremento_salario", 2.0 if etapa < 3 else 3.0)
+        ws[f"N{socios_row}"] = inc_pct / 100
 
 
 def _fill_ventas(ws, ss):

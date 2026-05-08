@@ -186,22 +186,24 @@ class Empleado:
             'neto_trabajador': sueldo - ss_trabajador - irpf
         }
 
+    def get_increment_factor(self, ano: int, incrementos: Dict[int, float]) -> float:
+        """Devuelve el factor acumulado de incremento salarial para el año dado.
+        Replica la lógica del Excel: el factor se aplica uniformemente a todos
+        los componentes del coste (salario, SS empresa, SS trabajador, IRPF).
+        """
+        factor = 1.0
+        if ano >= 2 and 1 in incrementos:
+            factor *= (1 + incrementos[1])
+        if ano >= 3 and 2 in incrementos:
+            factor *= (1 + incrementos[2])
+        if ano >= 4 and 3 in incrementos:
+            for _ in range(ano - 3):
+                factor *= (1 + incrementos[3])
+        return factor
+
     def get_sueldo_ano(self, ano: int, incrementos: Dict[int, float]) -> float:
         """Calcula el sueldo para un año específico aplicando incrementos"""
-        sueldo = self.sueldo_bruto_anual
-        # Incrementos según etapa:
-        # Etapa 1 -> incremento aplicado en año 2
-        # Etapa 2 -> incremento aplicado en año 3
-        # Etapa 3 -> incremento aplicado en año 4 y siguientes
-        if ano >= 2 and 1 in incrementos:
-            sueldo *= (1 + incrementos[1])
-        if ano >= 3 and 2 in incrementos:
-            sueldo *= (1 + incrementos[2])
-        if ano >= 4 and 3 in incrementos:
-            # Año 4 y siguientes usan incremento de etapa 3
-            for _ in range(ano - 3):
-                sueldo *= (1 + incrementos[3])
-        return sueldo
+        return self.sueldo_bruto_anual * self.get_increment_factor(ano, incrementos)
 
 
 @dataclass
@@ -456,39 +458,24 @@ class FinancialEngine:
         }
 
         for emp in self.empleados:
+            # Calcular costes base (año 1) una sola vez por empleado.
+            # El Excel aplica el factor de incremento uniformemente a todos los
+            # componentes del coste (L=coste empresa, J=SS total, K=IRPF, M=neto),
+            # sin recalcular SS desde el salario incrementado.
+            costes_base = emp.calcular_costes(self.tax_config)
+
             for mes in range(1, self.months + 1):
-                # Solo si el empleado está activo en ese mes
                 if emp.mes_alta <= mes <= emp.mes_baja:
-                    # Calcular el año correspondiente al mes (1-5)
                     ano = self._mes_a_ano(mes)
-                    
-                    # Obtener sueldo para ese año, aplicando incrementos
-                    sueldo_bruto_ano = emp.get_sueldo_ano(ano, self.incrementos_salariales)
-                    
-                    # Actualizar sueldo base del empleado temporalmente para este cálculo
-                    sueldo_original = emp.sueldo_bruto_anual
-                    emp.sueldo_bruto_anual = sueldo_bruto_ano
-                    
-                    # Calcular costes con el sueldo ajustado por año
-                    costes = emp.calcular_costes(self.tax_config)
-                    
-                    # Restaurar sueldo original
-                    emp.sueldo_bruto_anual = sueldo_original
-                    
-                    # Valores mensuales
-                    sueldo_mensual = costes['sueldo_bruto'] / 12
-                    ss_empresa_mensual = costes['ss_empresa'] / 12
-                    ss_trabajador_mensual = costes['ss_trabajador'] / 12
-                    irpf_mensual = costes['irpf'] / 12
-                    coste_empresa_mensual = costes['coste_empresa'] / 12
+                    factor = emp.get_increment_factor(ano, self.incrementos_salariales)
 
                     idx = mes - 1
                     num = emp.num_trabajadores
-                    data['sueldos_brutos'][idx] += sueldo_mensual * num
-                    data['ss_empresa'][idx] += ss_empresa_mensual * num
-                    data['ss_trabajador'][idx] += ss_trabajador_mensual * num
-                    data['irpf'][idx] += irpf_mensual * num
-                    data['coste_empresa_total'][idx] += coste_empresa_mensual * num
+                    data['sueldos_brutos'][idx] += (costes_base['sueldo_bruto'] * factor / 12) * num
+                    data['ss_empresa'][idx] += (costes_base['ss_empresa'] * factor / 12) * num
+                    data['ss_trabajador'][idx] += (costes_base['ss_trabajador'] * factor / 12) * num
+                    data['irpf'][idx] += (costes_base['irpf'] * factor / 12) * num
+                    data['coste_empresa_total'][idx] += (costes_base['coste_empresa'] * factor / 12) * num
 
         return pd.DataFrame(data)
 
