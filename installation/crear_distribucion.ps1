@@ -13,18 +13,21 @@ $version     = "v1.0"
 $zipName     = "PEF-AI-Assistant-$version.zip"
 $zipPath     = Join-Path $projectRoot $zipName
 
-# Carpetas y archivos que van en el ZIP
+# Carpetas y archivos que van en el ZIP (solo lo necesario para ejecutar la app)
 $include = @(
     "src",
     "templates",
     "resources",
     ".streamlit",
-    "installation",
     "requirements.txt",
-    "pyproject.toml",
-    ".env.example",
-    "README.md",
     "INSTALAR.bat"
+)
+
+# Archivos de installation/ que necesita el usuario final (sin Dockerfile, guías, etc.)
+$installationFiles = @(
+    "installation\setup.bat",
+    "installation\launch.vbs",
+    "installation\INSTRUCCIONES.txt"
 )
 
 # Patrones a excluir dentro de las carpetas copiadas
@@ -55,11 +58,22 @@ $tempDir = Join-Path $env:TEMP "pef_dist_$(Get-Random)"
 New-Item -ItemType Directory -Path $tempDir | Out-Null
 Write-Host "  [1/3] Copiando archivos..."
 
+# Copiar carpetas y archivos de la app
 foreach ($item in $include) {
     $src = Join-Path $projectRoot $item
     $dst = Join-Path $tempDir $item
     if (Test-Path $src) {
         Copy-Item $src $dst -Recurse -Force
+    }
+}
+
+# Copiar solo los archivos de installation/ necesarios para el usuario final
+New-Item -ItemType Directory -Path (Join-Path $tempDir "installation") -Force | Out-Null
+foreach ($item in $installationFiles) {
+    $src = Join-Path $projectRoot $item
+    $dst = Join-Path $tempDir $item
+    if (Test-Path $src) {
+        Copy-Item $src $dst -Force
     }
 }
 
@@ -88,10 +102,10 @@ Write-Host ""
 Write-Host "  Listo: $zipName  ($sizeMB MB)" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Contenido del ZIP:"
-Write-Host "    INSTALAR.bat         <- el usuario hace doble clic aqui"
+Write-Host "    INSTALAR.bat              <- el usuario hace doble clic aqui"
 Write-Host "    installation\"
-Write-Host "      setup.bat          <- instalador (llamado por INSTALAR.bat)"
-Write-Host "      launch.vbs         <- lanzador (acceso directo del escritorio)"
+Write-Host "      setup.bat"
+Write-Host "      launch.vbs"
 Write-Host "      INSTRUCCIONES.txt"
-Write-Host "    src\  templates\  resources\  requirements.txt ..."
+Write-Host "    src\  templates\  resources\  .streamlit\  requirements.txt"
 Write-Host ""
