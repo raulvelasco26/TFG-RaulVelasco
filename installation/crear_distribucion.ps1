@@ -20,7 +20,9 @@ $include = @(
     "resources",
     ".streamlit",
     "requirements.txt",
-    "INSTALAR.bat"
+    "INSTALAR.bat",        # Windows
+    "INSTALAR.command",    # Mac
+    "INSTALAR.sh"          # Linux
 )
 
 # Archivos de installation/ que necesita el usuario final (sin Dockerfile, guías, etc.)
@@ -102,10 +104,10 @@ Write-Host ""
 Write-Host "  Listo: $zipName  ($sizeMB MB)" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Contenido del ZIP:"
-Write-Host "    INSTALAR.bat              <- el usuario hace doble clic aqui"
+Write-Host "    INSTALAR.bat         <- Windows: doble clic"
+Write-Host "    INSTALAR.command     <- Mac:     doble clic en Finder"
+Write-Host "    INSTALAR.sh          <- Linux:   bash INSTALAR.sh"
 Write-Host "    installation\"
-Write-Host "      setup.bat"
-Write-Host "      launch.vbs"
-Write-Host "      INSTRUCCIONES.txt"
+Write-Host "      setup.bat  launch.vbs  INSTRUCCIONES.txt"
 Write-Host "    src\  templates\  resources\  .streamlit\  requirements.txt"
 Write-Host ""
