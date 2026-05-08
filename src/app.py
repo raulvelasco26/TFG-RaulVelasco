@@ -388,7 +388,7 @@ def render_sidebar():
                 total_capex = sum(v["importe"] for v in st.session_state.capex.values())
                 total_capex += sum(v["importe"] for v in st.session_state.proyectos_inversion.values())
                 total_capex += sum(v["importe"] for v in st.session_state.proyectos_trabajo.values())
-                st.metric("Total CAPEX", f"{total_capex:,.0f} €")
+                st.metric("Total CAPEX", f"{total_capex:,.0f}")
 
             if st.session_state.ingresos:
                 st.write(f"**Líneas de ingreso:** {len(st.session_state.ingresos)}")
@@ -551,7 +551,7 @@ def _build_analisis_system_prompt() -> str:
             return sum(df[col][(ano - 1) * 12: ano * 12])
 
         def fmt_n(v):
-            sym = st.session_state.get("moneda", "€")
+            sym = st.session_state.get("moneda", "")
             return f"{v:,.0f} {sym}".strip() if v is not None else "N/A"
 
         def fmt_p(v):
@@ -1091,7 +1091,7 @@ def render_precios_producto(key, titulo):
         incremento = st.session_state.ingresos[key]["incremento"][i] if i < len(st.session_state.ingresos[key]["incremento"]) else 0
         precio_actual = precio_actual * (1 + incremento / 100)
         with cols[i + 2]:
-            st.text(f"{precio_actual:,.2f} €")
+            st.text(f"{precio_actual:,.2f}")
 
 
 def render_margenes_producto(key, titulo):
@@ -1731,13 +1731,13 @@ Puedes responderme de forma natural, por ejemplo:
         )
     with col4:
         fiscal["ss_tope_autonomos"] = st.number_input(
-            "Tope SS autónomos (€)", value=float(fiscal.get("ss_tope_autonomos", 56640.0)),
+            "Tope SS autónomos", value=float(fiscal.get("ss_tope_autonomos", 56640.0)),
             min_value=0.0, step=100.0, key="fiscal_tope_aut",
             help="Base máxima de cotización anual para autónomos."
         )
     with col5:
         fiscal["ss_tope_general"] = st.number_input(
-            "Tope SS general (€)", value=float(fiscal.get("ss_tope_general", 56640.0)),
+            "Tope SS general", value=float(fiscal.get("ss_tope_general", 56640.0)),
             min_value=0.0, step=100.0, key="fiscal_tope_gen",
             help="Base máxima de cotización anual para régimen general."
         )
@@ -1747,17 +1747,17 @@ Puedes responderme de forma natural, por ejemplo:
     col1, col2, col3 = st.columns(3)
     with col1:
         fiscal["irpf_bajo"] = st.number_input(
-            "Tramo bajo < 15.000 € (%)", value=float(fiscal.get("irpf_bajo", 0.0)),
+            "Tramo bajo < 15.000 (%)", value=float(fiscal.get("irpf_bajo", 0.0)),
             min_value=0.0, max_value=100.0, step=0.5, key="fiscal_irpf_bajo",
         )
     with col2:
         fiscal["irpf_medio"] = st.number_input(
-            "Tramo medio 15.000–90.000 € (%)", value=float(fiscal.get("irpf_medio", 20.0)),
+            "Tramo medio 15.000–90.000 (%)", value=float(fiscal.get("irpf_medio", 20.0)),
             min_value=0.0, max_value=100.0, step=0.5, key="fiscal_irpf_medio",
         )
     with col3:
         fiscal["irpf_alto"] = st.number_input(
-            "Tramo alto > 90.000 € (%)", value=float(fiscal.get("irpf_alto", 40.0)),
+            "Tramo alto > 90.000 (%)", value=float(fiscal.get("irpf_alto", 40.0)),
             min_value=0.0, max_value=100.0, step=0.5, key="fiscal_irpf_alto",
         )
 
@@ -1845,9 +1845,9 @@ def render_stage_capex():
 **Cuéntame qué inversiones necesitas:**
 
 Por ejemplo:
-- *"Necesito ordenadores por 2.000€ y desarrollar una web por 5.000€"*
-- *"Voy a comprar maquinaria por 15.000€ con una subvención del 30%"*
-- *"Mobiliario de oficina por 3.000€ y una furgoneta de segunda mano por 8.000€"*"""
+- *"Necesito ordenadores por 2.000 y desarrollar una web por 5.000"*
+- *"Voy a comprar maquinaria por 15.000 con una subvención del 30%"*
+- *"Mobiliario de oficina por 3.000 y una furgoneta de segunda mano por 8.000"*"""
 
             st.session_state.messages.append({
                 "role": "assistant",
@@ -1874,7 +1874,7 @@ Por ejemplo:
         with cols[0]:
             st.markdown("**Categoría**")
         with cols[1]:
-            st.markdown("**Importe (€)**")
+            st.markdown("**Importe**")
         with cols[2]:
             st.markdown("**Años**")
         with cols[3]:
@@ -1912,13 +1912,13 @@ Por ejemplo:
                 st.session_state.capex[key]["anos"] = anos
             with cols[3]:
                 iva = importe * _iva_inv
-                st.text(f"{iva:,.0f} €")
+                st.text(f"{iva:,.0f}")
             with cols[4]:
                 total = importe + iva
-                st.text(f"{total:,.0f} €")
+                st.text(f"{total:,.0f}")
             with cols[5]:
                 amort = importe / anos if anos > 0 else 0
-                st.text(f"{amort:,.0f} €")
+                st.text(f"{amort:,.0f}")
 
         # === INMOVILIZADO MATERIAL ===
         st.markdown("#### 🔶 Inmovilizado Material")
@@ -1928,7 +1928,7 @@ Por ejemplo:
         with cols[0]:
             st.markdown("**Categoría**")
         with cols[1]:
-            st.markdown("**Importe (€)**")
+            st.markdown("**Importe**")
         with cols[2]:
             st.markdown("**Años**")
         with cols[3]:
@@ -1969,20 +1969,20 @@ Por ejemplo:
                 st.session_state.capex[key]["anos"] = anos
             with cols[3]:
                 iva = importe * (0.0 if key in ("terrenos", "fianzas") else _iva_inv)
-                st.text(f"{iva:,.0f} €")
+                st.text(f"{iva:,.0f}")
             with cols[4]:
                 total = importe + iva
-                st.text(f"{total:,.0f} €")
+                st.text(f"{total:,.0f}")
             with cols[5]:
                 amort = importe / anos if anos > 0 else 0
-                st.text(f"{amort:,.0f} €")
+                st.text(f"{amort:,.0f}")
 
         # === FIANZAS ===
         st.markdown("#### 📌 Fianzas y Depósitos")
         col1, col2 = st.columns(2)
         with col1:
             fianzas = st.number_input(
-                "Fianzas (€)", value=st.session_state.capex["fianzas"]["importe"],
+                "Fianzas", value=st.session_state.capex["fianzas"]["importe"],
                 min_value=0, step=100, key="capex_fianzas_importe",
                 help="Depósitos recuperables (ej: fianza alquiler)"
             )
@@ -2001,7 +2001,7 @@ Por ejemplo:
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     pi_importe = st.number_input(
-                        "Importe (€)", value=proy_data["importe"],
+                        "Importe", value=proy_data["importe"],
                         min_value=0, step=100, key=f"{proy_key}_importe",
                         help="Importe sin IVA"
                     )
@@ -2022,7 +2022,7 @@ Por ejemplo:
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     pi_sub = st.number_input(
-                        "Subvención (€)", value=proy_data["subvencion"],
+                        "Subvención", value=proy_data["subvencion"],
                         min_value=0, step=100, key=f"{proy_key}_sub",
                         help="Subvención de capital asociada"
                     )
@@ -2036,8 +2036,8 @@ Por ejemplo:
                 with col3:
                     if pi_importe > 0:
                         pi_iva = pi_importe * _iva_inv
-                        st.text(f"IVA ({_iva_inv_pct:.0f}%): {pi_iva:,.0f} €")
-                        st.text(f"Total: {pi_importe + pi_iva:,.0f} €")
+                        st.text(f"IVA ({_iva_inv_pct:.0f}%): {pi_iva:,.0f}")
+                        st.text(f"Total: {pi_importe + pi_iva:,.0f}")
                         pi_mes_fin_amort = pi_mes + pi_anos * 12
                         st.text(f"Fin amort: mes {pi_mes_fin_amort}")
 
@@ -2052,7 +2052,7 @@ Por ejemplo:
                 col1, col2 = st.columns(2)
                 with col1:
                     pt_importe = st.number_input(
-                        "Importe total (€)", value=proy_data["importe"],
+                        "Importe total", value=proy_data["importe"],
                         min_value=0, step=100, key=f"{proy_key}_importe",
                         help="Coste total del proyecto (se capitaliza al finalizar)"
                     )
@@ -2079,7 +2079,7 @@ Por ejemplo:
                     proy_data["mes_fin"] = pt_fin
                 with col3:
                     pt_sub = st.number_input(
-                        "Subvención (€)", value=proy_data["subvencion"],
+                        "Subvención", value=proy_data["subvencion"],
                         min_value=0, step=100, key=f"{proy_key}_sub",
                         help="Subvención de capital asociada"
                     )
@@ -2096,8 +2096,8 @@ Por ejemplo:
                     if pt_importe > 0:
                         duracion = pt_fin - pt_inicio + 1
                         importe_medio = pt_importe / duracion if duracion > 0 else 0
-                        st.text(f"IVA: 0 € (no aplica)")
-                        st.text(f"Importe medio/mes: {importe_medio:,.0f} €")
+                        st.text(f"IVA: 0 (no aplica)")
+                        st.text(f"Importe medio/mes: {importe_medio:,.0f}")
                         st.text(f"Inicio amort: mes {pt_fin + 1}")
                         st.text(f"Fin amort: mes {pt_fin + 1 + pt_anos * 12}")
 
@@ -2128,23 +2128,23 @@ Por ejemplo:
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Total Intangible", f"{total_intangible:,.0f} €")
+            st.metric("Total Intangible", f"{total_intangible:,.0f}")
         with col2:
-            st.metric("Total Material", f"{total_material:,.0f} €")
+            st.metric("Total Material", f"{total_material:,.0f}")
         with col3:
-            st.metric("IVA Soportado", f"{total_iva:,.0f} €", help=f"IVA inversiones ({_iva_inv_pct:.0f}%). Terrenos y fianzas: 0%")
+            st.metric("IVA Soportado", f"{total_iva:,.0f}", help=f"IVA inversiones ({_iva_inv_pct:.0f}%). Terrenos y fianzas: 0%")
         with col4:
-            st.metric("TOTAL con IVA", f"{total_con_iva:,.0f} €", help="Desembolso real necesario")
+            st.metric("TOTAL con IVA", f"{total_con_iva:,.0f}", help="Desembolso real necesario")
 
         if total_proy_inv > 0 or total_proy_trab > 0:
             col1, col2 = st.columns(2)
             with col1:
                 if total_proy_inv > 0:
-                    st.metric("Proy. Inversión Posteriores", f"{total_proy_inv:,.0f} €",
+                    st.metric("Proy. Inversión Posteriores", f"{total_proy_inv:,.0f}",
                               help="Inversiones adquiridas después del mes 1 (incluidas en total)")
             with col2:
                 if total_proy_trab > 0:
-                    st.metric("Proy. Trabajo Propio Activo", f"{total_proy_trab:,.0f} €",
+                    st.metric("Proy. Trabajo Propio Activo", f"{total_proy_trab:,.0f}",
                               help="Se capitaliza al finalizar (no genera desembolso adicional)")
 
         # Mostrar también amortización anual total
@@ -2164,7 +2164,7 @@ Por ejemplo:
             if pt["importe"] > 0 and pt["anos"] > 0:
                 amort_anual += pt["importe"] / pt["anos"]
 
-        st.info(f"📈 **Amortización anual total**: {amort_anual:,.0f} € (gasto no monetario que reduce el beneficio)")
+        st.info(f"📈 **Amortización anual total**: {amort_anual:,.0f} (gasto no monetario que reduce el beneficio)")
 
     # Navegación
     st.markdown("---")
@@ -2214,7 +2214,7 @@ def render_stage_financiacion():
         | Parámetro | Descripción | Ejemplo |
         |-----------|-------------|---------|
         | **Mes inicio** | Cuándo se recibe el préstamo (1-60) | Mes 1 |
-        | **Importe** | Cantidad prestada | 20.000 € |
+        | **Importe** | Cantidad prestada | 20.000 |
         | **Meses carencia** | Período sin pagar capital | 6 meses |
         | **Meses amortización** | Plazo para devolver el capital | 48 meses |
         | **Interés anual** | Tipo de interés (TAE) | 5% |
@@ -2253,7 +2253,7 @@ def render_stage_financiacion():
    - ¿Quieres configurar una línea de crédito para imprevistos?
 
 **Ejemplo:**
-*"Aportamos 10.000€ de capital inicial. Pediremos un préstamo ICO de 25.000€ a 5 años con 1 año de carencia al 4% de interés"*"""
+*"Aportamos 10.000 de capital inicial. Pediremos un préstamo ICO de 25.000 a 5 años con 1 año de carencia al 4% de interés"*"""
 
             st.session_state.messages.append({
                 "role": "assistant",
@@ -2294,7 +2294,7 @@ def render_stage_financiacion():
         col1, col2, col3 = st.columns(3)
         with col1:
             cap_importe = st.number_input(
-                "Importe (€)", value=cap_data.get("importe", 0), min_value=0, step=1000,
+                "Importe", value=cap_data.get("importe", 0), min_value=0, step=1000,
                 key="cap_ini_importe"
             )
             cap_data["importe"] = cap_importe
@@ -2307,7 +2307,7 @@ def render_stage_financiacion():
         with col3:
             if cap_acciones > 0:
                 valor_accion_ini = cap_importe / cap_acciones
-                st.metric("Valor/acción", f"{valor_accion_ini:,.2f} €")
+                st.metric("Valor/acción", f"{valor_accion_ini:,.2f}")
             else:
                 st.metric("Valor/acción", "-")
         capital = cap_importe
@@ -2322,14 +2322,14 @@ def render_stage_financiacion():
             amp_data["mes"] = amp_mes
         with col2:
             amp_importe = st.number_input(
-                "Importe (€)", value=amp_data.get("importe", 0), min_value=0, step=1000,
+                "Importe", value=amp_data.get("importe", 0), min_value=0, step=1000,
                 key="amp_importe"
             )
             amp_data["importe"] = amp_importe
         with col3:
             amp_valoracion = cap_importe  # Calculado: valor previo a la ronda = capital inicial
             amp_data["valoracion_premoney"] = amp_valoracion
-            st.metric("Valoración pre-money (€)", f"{amp_valoracion:,.0f} €",
+            st.metric("Valoración pre-money", f"{amp_valoracion:,.0f}",
                       help="Valor de la empresa antes de la ampliación = capital inicial de los fundadores")
 
         # Mostrar tabla resumen de refinanciación
@@ -2353,9 +2353,9 @@ def render_stage_financiacion():
 
             st.caption(
                 f"Tras ampliación: {acciones_totales:,.0f} acciones | "
-                f"Valor/acción: {valor_accion_amp:,.2f} € | "
+                f"Valor/acción: {valor_accion_amp:,.2f} | "
                 f"% nuevos socios: {pct_nuevos:.1%} | "
-                f"Valor fundadores: {valor_fundadores:,.0f} €"
+                f"Valor fundadores: {valor_fundadores:,.0f}"
             )
 
         ampliacion = amp_importe
@@ -2368,7 +2368,7 @@ def render_stage_financiacion():
         with cols[0]:
             st.markdown("**Mes inicio**")
         with cols[1]:
-            st.markdown("**Importe (€)**")
+            st.markdown("**Importe**")
         with cols[2]:
             st.markdown("**Carencia**")
         with cols[3]:
@@ -2425,9 +2425,9 @@ def render_stage_financiacion():
                     cuota_p1 = p1_importe * (i_mensual * (1 + i_mensual)**p1_amort) / ((1 + i_mensual)**p1_amort - 1)
                 else:
                     cuota_p1 = p1_importe / p1_amort
-                st.text(f"{cuota_p1:,.0f} €")
+                st.text(f"{cuota_p1:,.0f}")
             else:
-                st.text("0 €")
+                st.text("0")
 
         # Préstamo 2
         st.markdown("**Préstamo 2**")
@@ -2472,9 +2472,9 @@ def render_stage_financiacion():
                     cuota_p2 = p2_importe * (i_mensual * (1 + i_mensual)**p2_amort) / ((1 + i_mensual)**p2_amort - 1)
                 else:
                     cuota_p2 = p2_importe / p2_amort
-                st.text(f"{cuota_p2:,.0f} €")
+                st.text(f"{cuota_p2:,.0f}")
             else:
-                st.text("0 €")
+                st.text("0")
 
         # === PÓLIZA DE CRÉDITO ===
         st.markdown("#### 💳 Póliza de Crédito")
@@ -2500,11 +2500,11 @@ def render_stage_financiacion():
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Total Capital", f"{total_capital:,.0f} €", help="Aportaciones de los socios")
+            st.metric("Total Capital", f"{total_capital:,.0f}", help="Aportaciones de los socios")
         with col2:
-            st.metric("Total Préstamos", f"{total_prestamos:,.0f} €", help="Suma de préstamos solicitados")
+            st.metric("Total Préstamos", f"{total_prestamos:,.0f}", help="Suma de préstamos solicitados")
         with col3:
-            st.metric("TOTAL Disponible", f"{total_disponible:,.0f} €")
+            st.metric("TOTAL Disponible", f"{total_disponible:,.0f}")
 
         # Validación contra CAPEX
         st.markdown("---")
@@ -2521,10 +2521,10 @@ def render_stage_financiacion():
 
         if total_disponible >= total_capex_iva and total_capex_iva > 0:
             diferencia = total_disponible - total_capex_iva
-            st.success(f"✅ **Financiación suficiente**: Dispones de {total_disponible:,.0f}€ para cubrir {total_capex_iva:,.0f}€ de inversiones (+IVA). Excedente: {diferencia:,.0f}€")
+            st.success(f"✅ **Financiación suficiente**: Dispones de {total_disponible:,.0f} para cubrir {total_capex_iva:,.0f} de inversiones (+IVA). Excedente: {diferencia:,.0f}")
         elif total_capex_iva > 0:
             deficit = total_capex_iva - total_disponible
-            st.warning(f"⚠️ **Financiación insuficiente**: Las inversiones suman {total_capex_iva:,.0f}€ (con IVA). Te faltan {deficit:,.0f}€")
+            st.warning(f"⚠️ **Financiación insuficiente**: Las inversiones suman {total_capex_iva:,.0f} (con IVA). Te faltan {deficit:,.0f}")
         else:
             st.info("💡 Completa primero la etapa de CAPEX para conocer las necesidades de inversión.")
 
@@ -2573,8 +2573,8 @@ def render_stage_opex():
 
         | Categoría | Descripción | Ejemplos |
         |-----------|-------------|----------|
-        | Alquileres | Locales, oficinas, almacén | 800 €/mes = 9.600 €/año |
-        | Suministros | Luz, agua, gas, internet, teléfono | 200 €/mes = 2.400 €/año |
+        | Alquileres | Locales, oficinas, almacén | 800/mes = 9.600/año |
+        | Suministros | Luz, agua, gas, internet, teléfono | 200/mes = 2.400/año |
         | Rentings | Leasing de equipos o vehículos | Cuotas de renting |
         | Reparaciones | Mantenimiento y reparaciones | Presupuesto anual |
         | Servicios profesionales | Gestoría, abogados, consultores | Honorarios anuales |
@@ -2626,13 +2626,13 @@ def render_stage_opex():
 - Salario bruto anual
 
 Puedes decirme cosas como:
-- *"Somos 2 socios fundadores, cobraremos 1.000€/mes cada uno"*
-- *"Contrataremos 1 administrativo con 18.000€ brutos/año desde el mes 1"*
-- *"Un comercial con 22.000€ desde el mes 6 hasta el mes 36"*
-- *"En el mes 13 incorporaremos un programador con 25.000€ brutos al año"*
+- *"Somos 2 socios fundadores, cobraremos 1.000/mes cada uno"*
+- *"Contrataremos 1 administrativo con 18.000 brutos/año desde el mes 1"*
+- *"Un comercial con 22.000 desde el mes 6 hasta el mes 36"*
+- *"En el mes 13 incorporaremos un programador con 25.000 brutos al año"*
 
 **Ejemplo completo:**
-*"El alquiler son 800€/mes, suministros unos 150€/mes. Somos 2 socios fundadores con 15.000€ brutos/año cada uno. Contrataremos 1 administrativo con 18.000€ brutos/año desde el mes 1, y un comercial con 22.000€ desde el mes 6"*
+*"El alquiler son 800/mes, suministros unos 150/mes. Somos 2 socios fundadores con 15.000 brutos/año cada uno. Contrataremos 1 administrativo con 18.000 brutos/año desde el mes 1, y un comercial con 22.000 desde el mes 6"*
 
 💡 La Seguridad Social e IRPF se calculan automáticamente."""
 
@@ -2676,7 +2676,7 @@ Puedes decirme cosas como:
         with cols[0]:
             st.markdown("**Concepto**")
         with cols[1]:
-            st.markdown("**Año 1 (€)**")
+            st.markdown("**Año 1**")
         with cols[2]:
             st.markdown("**% Año 2**")
         with cols[3]:
@@ -2731,17 +2731,17 @@ Puedes decirme cosas como:
             if ano1 > 0:
                 cols2 = st.columns([2, 1, 0.7, 0.7, 0.7, 0.7])
                 with cols2[1]:
-                    st.caption(f"{ano1:,.0f} €/año")
+                    st.caption(f"{ano1:,.0f}/año")
                 for idx, col in enumerate([cols2[2], cols2[3], cols2[4], cols2[5]]):
                     with col:
-                        st.caption(f"{importes[idx+1]:,.0f} €")
+                        st.caption(f"{importes[idx+1]:,.0f}")
 
         st.markdown("---")
         cols = st.columns([2, 1, 0.7, 0.7, 0.7, 0.7])
         with cols[0]:
             st.markdown("**TOTAL ANUAL**")
         with cols[1]:
-            st.markdown(f"**{totales_ano[0]:,.0f} €**")
+            st.markdown(f"**{totales_ano[0]:,.0f}**")
         for idx, col in enumerate([cols[2], cols[3], cols[4], cols[5]]):
             with col:
                 st.markdown(f"**{totales_ano[idx+1]:,.0f}**")
@@ -2772,7 +2772,7 @@ Puedes decirme cosas como:
         with col3:
             st.metric("SS Trabajador", f"{ss_trab}%", help="Régimen general - cargo trabajador")
         with col4:
-            st.metric("Tope SS general", f"{ss_tope_gen:,.0f} €", help="Base máxima de cotización anual")
+            st.metric("Tope SS general", f"{ss_tope_gen:,.0f}", help="Base máxima de cotización anual")
 
         st.markdown("---")
 
@@ -2922,13 +2922,13 @@ Puedes decirme cosas como:
                     coste_emp = salario + ss_e
 
                     with cols[5]:
-                        st.text(f"{ss_e * num:,.0f} €" if num > 0 else "-")
+                        st.text(f"{ss_e * num:,.0f}" if num > 0 else "-")
                     with cols[6]:
-                        st.text(f"{ss_t * num:,.0f} €" if num > 0 and not es_autonomo else "-")
+                        st.text(f"{ss_t * num:,.0f}" if num > 0 and not es_autonomo else "-")
                     with cols[7]:
-                        st.text(f"{irpf * num:,.0f} €" if num > 0 else "-")
+                        st.text(f"{irpf * num:,.0f}" if num > 0 else "-")
                     with cols[8]:
-                        st.text(f"{coste_emp * num:,.0f} €" if num > 0 else "-")
+                        st.text(f"{coste_emp * num:,.0f}" if num > 0 else "-")
 
                     # Acumular totales de etapa
                     if num > 0:
@@ -2938,7 +2938,7 @@ Puedes decirme cosas como:
 
                 # Subtotal de la etapa
                 if etapa_coste > 0:
-                    st.markdown(f"**Subtotal {etapa_nombre}:** {etapa_coste:,.0f} €/año")
+                    st.markdown(f"**Subtotal {etapa_nombre}:** {etapa_coste:,.0f}/año")
 
                 # Acumular totales globales
                 total_salarios += etapa_salarios
@@ -2951,14 +2951,14 @@ Puedes decirme cosas como:
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Total Salarios Brutos", f"{total_salarios:,.0f} €/año")
+            st.metric("Total Salarios Brutos", f"{total_salarios:,.0f}/año")
         with col2:
-            st.metric("SS Empresa", f"{total_ss_emp:,.0f} €/año", help="Calculado automáticamente")
+            st.metric("SS Empresa", f"{total_ss_emp:,.0f}/año", help="Calculado automáticamente")
         with col3:
-            st.metric("Coste Total Empresa", f"{total_coste_emp:,.0f} €/año", help="Salarios + SS Empresa")
+            st.metric("Coste Total Empresa", f"{total_coste_emp:,.0f}/año", help="Salarios + SS Empresa")
         with col4:
             coste_mensual = total_coste_emp / 12 if total_coste_emp > 0 else 0
-            st.metric("Coste Mensual Medio", f"{coste_mensual:,.0f} €/mes")
+            st.metric("Coste Mensual Medio", f"{coste_mensual:,.0f}/mes")
 
     # Navegación
     st.markdown("---")
@@ -3013,7 +3013,7 @@ def render_stage_ingresos():
 
         | Concepto | Descripción | Ejemplo |
         |----------|-------------|---------|
-        | **Precio inicial** | Precio unitario sin IVA (año 1) | 50 €/unidad |
+        | **Precio inicial** | Precio unitario sin IVA (año 1) | 50/unidad |
         | **Incremento anual** | % de subida de precios cada año | 3% anual |
 
         #### 📊 3. Márgenes Comerciales (Costes Variables)
@@ -3062,9 +3062,9 @@ def render_stage_ingresos():
 - ¿Pagas comisiones de venta?
 
 **Ejemplo:**
-*"Vendemos servicio de consultoría (Tipo A). El mercado son unas 500 empresas en la zona. Esperamos captar un 2% el primer año, 5% el segundo. Precio: 200€/hora, con un coste de tiempo del 30%"*
+*"Vendemos servicio de consultoría (Tipo A). El mercado son unas 500 empresas en la zona. Esperamos captar un 2% el primer año, 5% el segundo. Precio: 200/hora, con un coste de tiempo del 30%"*
 
-*"También vendemos cursos online (Tipo B). Mercado de 10.000 personas, captaremos 0.5% el año 1. Precio: 99€, coste de plataforma 10%"*"""
+*"También vendemos cursos online (Tipo B). Mercado de 10.000 personas, captaremos 0.5% el año 1. Precio: 99, coste de plataforma 10%"*"""
 
             st.session_state.messages.append({
                 "role": "assistant",
@@ -3156,7 +3156,7 @@ def render_stage_ingresos():
             for i in range(4):
                 precio_actual = precio_actual * (1 + incrementos[i] / 100)
                 with cols[i + 2]:
-                    st.text(f"{precio_actual:,.2f} €")
+                    st.text(f"{precio_actual:,.2f}")
 
         st.markdown("---")
 
@@ -3365,7 +3365,7 @@ def render_stage_ingresos():
             delta = None
             if i > 0 and ingresos_anuales[i-1] > 0:
                 delta = f"{((ingresos_anuales[i] - ingresos_anuales[i-1]) / ingresos_anuales[i-1] * 100):+.0f}%"
-            st.metric(f"Año {i+1}", f"{ingresos_anuales[i]:,.0f} €", delta=delta)
+            st.metric(f"Año {i+1}", f"{ingresos_anuales[i]:,.0f}", delta=delta)
 
     # Navegación
     st.markdown("---")
@@ -3429,7 +3429,7 @@ def render_stage_analisis():
     ])
 
     # Función auxiliar para formatear números
-    _sym = st.session_state.get("moneda", "€")
+    _sym = st.session_state.get("moneda", "")
     def fmt(valor, decimals=0):
         if valor is None or pd.isna(valor):
             return "-"
@@ -3554,7 +3554,7 @@ def render_stage_analisis():
                         y=wf_values,
                         measure=wf_measure,
                         textposition="outside",
-                        text=[f"{v:,.0f} €" for v in wf_values],
+                        text=[f"{v:,.0f}" for v in wf_values],
                         increasing={"marker": {"color": "#2E7D32"}},
                         decreasing={"marker": {"color": "#C62828"}},
                         totals={"marker": {"color": "#1565C0"}},
@@ -3562,7 +3562,7 @@ def render_stage_analisis():
                     fig_wf.update_layout(
                         title=f"Cascada de la Cuenta de Resultados — Año {ano_wf}",
                         template="plotly_white",
-                        yaxis_title="Euros (€)",
+                        yaxis_title="Euros",
                         yaxis_tickformat=",.",
                         showlegend=False,
                         height=450,
@@ -3684,13 +3684,13 @@ def render_stage_analisis():
                     fig_tes.add_trace(go.Scatter(
                         x=meses, y=tesoreria_vals, fill='tozeroy',
                         fillcolor='rgba(46,125,50,0.15)', line=dict(color='#2E7D32', width=2),
-                        name='Tesorería Disponible', hovertemplate='Mes %{x}<br>%{y:,.0f} €<extra></extra>'
+                        name='Tesorería Disponible', hovertemplate='Mes %{x}<br>%{y:,.0f}<extra></extra>'
                     ))
                     fig_tes.add_hline(y=0, line_dash="dash", line_color="red",
                                       annotation_text="Déficit", annotation_position="bottom right")
                     fig_tes.update_layout(
                         title="Evolución de la Tesorería Disponible (60 meses)",
-                        xaxis_title="Mes", yaxis_title="Euros (€)",
+                        xaxis_title="Mes", yaxis_title="Euros",
                         yaxis_tickformat=",.", template="plotly_white", height=400,
                         showlegend=False,
                     )
@@ -3871,7 +3871,7 @@ def render_stage_analisis():
                     fig_bal.update_layout(
                         title="Estructura del Balance por Año",
                         template="plotly_white", barmode='group',
-                        yaxis_title="Euros (€)", yaxis_tickformat=",.",
+                        yaxis_title="Euros", yaxis_tickformat=",.",
                         height=450, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                     )
                     st.plotly_chart(fig_bal, use_container_width=True)
@@ -3953,10 +3953,10 @@ def render_stage_analisis():
 
                 fig_ig = go.Figure()
                 fig_ig.add_trace(go.Bar(name='Ingresos', x=anos_list, y=ing_anual,
-                                        marker_color='#2E7D32', text=[f"{v:,.0f} €" for v in ing_anual],
+                                        marker_color='#2E7D32', text=[f"{v:,.0f}" for v in ing_anual],
                                         textposition='outside'))
                 fig_ig.add_trace(go.Bar(name='Gastos Totales', x=anos_list, y=gastos_anual,
-                                        marker_color='#C62828', text=[f"{v:,.0f} €" for v in gastos_anual],
+                                        marker_color='#C62828', text=[f"{v:,.0f}" for v in gastos_anual],
                                         textposition='outside'))
                 fig_ig.add_trace(go.Scatter(name='Resultado Neto', x=anos_list, y=res_anual,
                                             mode='lines+markers', line=dict(color='#1565C0', width=3, dash='dot'),
@@ -3964,7 +3964,7 @@ def render_stage_analisis():
                 fig_ig.update_layout(
                     title="Ingresos vs Gastos Totales por Año",
                     template="plotly_white", barmode='group',
-                    yaxis_title="Euros (€)", yaxis_tickformat=",.",
+                    yaxis_title="Euros", yaxis_tickformat=",.",
                     height=450, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                 )
                 st.plotly_chart(fig_ig, use_container_width=True)
@@ -4102,7 +4102,7 @@ def render_stage_analisis():
                         fig_prod.update_layout(
                             title="Ingresos por Línea de Producto",
                             template="plotly_white", barmode='stack',
-                            yaxis_title="Euros (€)", yaxis_tickformat=",.",
+                            yaxis_title="Euros", yaxis_tickformat=",.",
                             height=400, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                         )
                         st.plotly_chart(fig_prod, use_container_width=True)
@@ -4120,7 +4120,7 @@ def render_stage_analisis():
                     fig_prod.update_layout(
                         title="Ingresos por Línea de Producto",
                         template="plotly_white", barmode='stack',
-                        yaxis_title="Euros (€)", yaxis_tickformat=",.",
+                        yaxis_title="Euros", yaxis_tickformat=",.",
                         height=400, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                     )
                     st.plotly_chart(fig_prod, use_container_width=True)
@@ -4167,7 +4167,7 @@ def render_stage_analisis():
                 "Importe": [fmt(cap_imp), fmt(amp_imp)],
                 "Valoración (pre-money)": [fmt(cap_imp), fmt(amp_val)],
                 "Acciones circulación": [f"{cap_acc:,.0f}" if cap_acc > 0 else "-", f"{acc_totales_amp:,.0f}" if acc_totales_amp > 0 else "-"],
-                "Valor/acción": [f"{valor_accion_cap:,.2f} €" if cap_acc > 0 else "-", f"{valor_accion_amp_calc:,.2f} €" if acc_totales_amp > 0 else "-"],
+                "Valor/acción": [f"{valor_accion_cap:,.2f}" if cap_acc > 0 else "-", f"{valor_accion_amp_calc:,.2f}" if acc_totales_amp > 0 else "-"],
                 "% nuevos socios": ["0%", f"{pct_nuevos_amp:.1%}"],
                 "Valor fundadores": [fmt(cap_imp), fmt(valor_fund_amp)]
             }
@@ -4223,7 +4223,7 @@ def render_stage_analisis():
                                      annotation_position="top left")
                 fig_be.update_layout(
                     title="Análisis del Punto Muerto — Año 1",
-                    template="plotly_white", xaxis_title="Mes", yaxis_title="Euros (€)",
+                    template="plotly_white", xaxis_title="Mes", yaxis_title="Euros",
                     yaxis_tickformat=".", height=400,
                     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                 )
@@ -4338,7 +4338,7 @@ def render_stage_analisis():
                                            mode='lines', stackgroup='one', line=dict(color='#EF5350')))
                 fig_d.update_layout(
                     title="Evolución de la Deuda",
-                    template="plotly_white", yaxis_title="Euros (€)", yaxis_tickformat=",.",
+                    template="plotly_white", yaxis_title="Euros", yaxis_tickformat=",.",
                     height=400, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                 )
                 st.plotly_chart(fig_d, use_container_width=True)

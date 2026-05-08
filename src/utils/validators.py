@@ -57,11 +57,11 @@ def validate_investment_financing_balance(inversiones_total, financiacion_total)
     """
     if financiacion_total < inversiones_total:
         deficit = inversiones_total - financiacion_total
-        return False, f"La financiación es insuficiente. Faltan {deficit:.2f}€"
+        return False, f"La financiación es insuficiente. Faltan {deficit:.2f}"
 
     if financiacion_total > inversiones_total * 1.5:
         exceso = financiacion_total - inversiones_total
-        return True, f"Hay un exceso de financiación de {exceso:.2f}€. ¿Es correcto?"
+        return True, f"Hay un exceso de financiación de {exceso:.2f}. ¿Es correcto?"
 
     return True, None
 

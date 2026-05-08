@@ -127,7 +127,7 @@ Devuelve EXCLUSIVAMENTE un objeto JSON con esta estructura, sin texto adicional:
 }
 
 Reglas:
-- Cada valor es un número (importe en €) o null si no se menciona.
+- Cada valor es un número (importe en) o null si no se menciona.
 - Usa null para categorías no mencionadas. No pongas 0.
 - Ordenadores, servidores, tablets → "equipos"
 - Software, webs, apps, desarrollo → "aplicaciones"
@@ -191,7 +191,7 @@ Devuelve EXCLUSIVAMENTE un objeto JSON con esta estructura, sin texto adicional:
 
 Reglas:
 - Cada valor es un número o null si no se menciona.
-- capital_inicial_importe: total que aportan los socios al inicio (€).
+- capital_inicial_importe: total que aportan los socios al inicio.
 - capital_inicial_acciones: número de acciones emitidas (si se menciona).
 - ampliacion_*: datos de una posible ampliación de capital futura.
 - prestamo1_interes: tipo de interés en % (ej: 5.0 para 5%).
@@ -234,7 +234,7 @@ Para cada empleado necesitas:
 - Número de trabajadores de ese perfil
 - Mes de alta (1-60)
 - Mes de baja (1-60)
-- Salario bruto anual en €
+- Salario bruto anual en
 
 Etapas de crecimiento:
 - Etapa 1: Personal inicial (desde el inicio del proyecto)
@@ -275,7 +275,7 @@ Devuelve EXCLUSIVAMENTE un objeto JSON con esta estructura, sin texto adicional:
 }
 
 Reglas para gastos fijos (servicios exteriores):
-- Los campos sin "_inc" son el importe ANUAL en € o null si no se menciona.
+- Los campos sin "_inc" son el importe ANUAL en o null si no se menciona.
 - Los campos "_incN" son el % de incremento para el año N (ej: 2.0 para 2%) o null si no se menciona.
 - Si el usuario da importes mensuales, multiplica por 12 para obtener el anual.
 - Si el usuario da un incremento GENERAL o ANUAL ("sube un 3% cada año", "IPC del 2%"):
@@ -309,7 +309,7 @@ Reglas para nóminas (campo "empleados"):
 - "num": número de trabajadores de ese perfil. Por defecto 1 si no se especifica.
 - "alta": mes de alta (1-60). Por defecto 1 si no se especifica.
 - "baja": mes de baja (1-60). Por defecto 60 si no se especifica.
-- "salario": salario bruto ANUAL en €. Si el usuario dice "1.500€/mes", calcula 1500×12=18000.
+- "salario": salario bruto ANUAL en. Si el usuario dice "1.500/mes", calcula 1500×12=18000.
 - "etapa": etapa de crecimiento (1, 2 o 3).
   * Si el empleado empieza en los primeros meses (mes 1-12) → etapa 1
   * Si empieza más adelante (mes 13-36) → etapa 2
@@ -334,7 +334,7 @@ Para cada línea necesitas:
 1. Nombre descriptivo (ej: "Consultoría", "Cursos online", "Software SaaS")
 2. SAM: Mercado Accesible Servible (número de clientes potenciales)
 3. SOM: Cuota de mercado objetivo cada año (% del SAM), 5 valores (años 1-5)
-4. Precio de venta unitario (€ por unidad/cliente/año)
+4. Precio de venta unitario ( por unidad/cliente/año)
 5. Incremento de precios anual (% para años 2, 3, 4, 5) — puede ser 0
 6. Costes variables como % del precio:
    - Cv Producción: coste de fabricar/prestar el servicio
@@ -392,7 +392,7 @@ Reglas:
   250 para oficinas/servicios, 365 para e-commerce/digital). Ejemplo: "80 clientes/día" en un
   restaurante → 80 × 300 = 24000.
 - som1-som5: porcentaje (%) de cuota de mercado para cada año. Ej: 2% → 2.0. NO en decimal.
-- precio: precio unitario en € (puede ser decimal).
+- precio: precio unitario en (puede ser decimal).
 - inc2-inc5: incremento de precio en % para cada año. Ej: 3% → 3.0. Si dice "mismo incremento todos los años", rellena inc2-inc5 con el mismo valor.
 - cv_prod, cv_adq, comisiones: porcentaje del precio (%). Ej: "30% de coste" → 30.0.
 - Si el usuario solo tiene 1 producto, solo rellena tipo_a y deja tipo_b y tipo_c a null.
