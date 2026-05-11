@@ -20,9 +20,9 @@ $include = @(
     "resources",
     ".streamlit",
     "requirements.txt",
-    "INSTALAR.bat",        # Windows
-    "INSTALAR.command",    # Mac
-    "INSTALAR.sh"          # Linux
+    "INSTALAR_Windows.bat",   # Windows
+    "INSTALAR_Mac.command",   # Mac
+    "INSTALAR_Linux.sh"       # Linux
 )
 
 # Archivos de installation/ que necesita el usuario final (sin Dockerfile, guías, etc.)
@@ -47,7 +47,7 @@ Write-Host "  ============================================="
 Write-Host ""
 
 # Comprobar que los archivos clave existen
-foreach ($item in @("src", "requirements.txt", "INSTALAR.bat", "installation\setup.bat", "installation\launch.vbs")) {
+foreach ($item in @("src", "requirements.txt", "INSTALAR_Windows.bat", "installation\setup.bat", "installation\launch.vbs")) {
     $fullPath = Join-Path $projectRoot $item
     if (-not (Test-Path $fullPath)) {
         Write-Host "  ERROR: No se encuentra '$item'" -ForegroundColor Red
@@ -104,9 +104,9 @@ Write-Host ""
 Write-Host "  Listo: $zipName  ($sizeMB MB)" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Contenido del ZIP:"
-Write-Host "    INSTALAR.bat         <- Windows: doble clic"
-Write-Host "    INSTALAR.command     <- Mac:     doble clic en Finder"
-Write-Host "    INSTALAR.sh          <- Linux:   bash INSTALAR.sh"
+Write-Host "    INSTALAR_Windows.bat    <- Windows: doble clic"
+Write-Host "    INSTALAR_Mac.command    <- Mac:     doble clic en Finder"
+Write-Host "    INSTALAR_Linux.sh       <- Linux:   bash INSTALAR_Linux.sh"
 Write-Host "    installation\"
 Write-Host "      setup.bat  launch.vbs  INSTRUCCIONES.txt"
 Write-Host "    src\  templates\  resources\  .streamlit\  requirements.txt"

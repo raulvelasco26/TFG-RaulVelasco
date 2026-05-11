@@ -29,9 +29,9 @@ Desde PowerShell en la raíz del proyecto:
 
 ```
 PEF-AI-Assistant-v1.0/
-├── INSTALAR.bat         <- Windows: doble clic
-├── INSTALAR.command     <- Mac:     doble clic en Finder
-├── INSTALAR.sh          <- Linux:   bash INSTALAR.sh
+├── INSTALAR_Windows.bat    <- Windows: doble clic
+├── INSTALAR_Mac.command    <- Mac:     doble clic en Finder
+├── INSTALAR_Linux.sh       <- Linux:   bash INSTALAR_Linux.sh
 ├── installation/
 │   ├── setup.bat        <- lógica de instalación Windows
 │   ├── launch.vbs       <- lanzador silencioso Windows

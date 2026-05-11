@@ -6,9 +6,9 @@ INSTALACION (solo la primera vez):
 ------------------------------------
 Ejecuta el instalador segun tu sistema operativo:
 
-  Windows  ->  doble clic en  INSTALAR.bat
-  Mac      ->  doble clic en  INSTALAR.command
-  Linux    ->  abre terminal y ejecuta:  bash INSTALAR.sh
+  Windows  ->  doble clic en  INSTALAR_Windows.bat
+  Mac      ->  doble clic en  INSTALAR_Mac.command
+  Linux    ->  abre terminal y ejecuta:  bash INSTALAR_Linux.sh
 
 El instalador:
   - Comprueba que tienes Python 3.10 o superior
@@ -42,7 +42,7 @@ PROBLEMAS FRECUENTES:
 ----------------------
 
 1. "La aplicacion no esta instalada todavia"
-   -> Ejecuta primero el INSTALAR de tu sistema operativo
+   -> Ejecuta primero el INSTALAR_Windows/Mac/Linux de tu sistema operativo
 
 2. "Python no encontrado"
    -> Instala Python 3.10+ desde https://www.python.org/downloads/
