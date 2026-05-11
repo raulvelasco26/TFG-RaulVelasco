@@ -84,12 +84,12 @@ class TestAmortizacionInversiones:
 
         df_amort = engine._calculate_amortizaciones_mensuales()
 
-        # Meses 1-12: sin amortización
-        for i in range(12):
+        # Meses 1-13: sin amortización (el mes de adquisición no amortiza)
+        for i in range(13):
             assert df_amort['amortizacion_total'][i] == 0
 
-        # Mes 13: primera amortización (100€/mes)
-        assert abs(df_amort['amortizacion_total'][12] - 100) < 0.01
+        # Mes 14: primera amortización (100€/mes)
+        assert abs(df_amort['amortizacion_total'][13] - 100) < 0.01
 
     def test_iva_soportado_inversiones(self):
         """Test del IVA soportado en inversiones"""
@@ -664,9 +664,10 @@ class TestFlujoCaja:
         # Calcular financiación para obtener saldo inicial
         engine._calculate_financiacion_mensual()
 
-        # Saldo inicial = Capital - Inversiones mes 1 con IVA + Subvenciones mes 1
-        # 30000 - 12100 + 2000 = 19900
-        assert abs(engine.saldo_inicial_tesoreria - 19900) < 0.01
+        # Saldo inicial = Capital - Inversiones mes 1 con IVA
+        # La subvención entra como cobro en el mes 1 del CF, no en el saldo inicial
+        # 30000 - 12100 = 17900
+        assert abs(engine.saldo_inicial_tesoreria - 17900) < 0.01
 
 
 class TestBalance:

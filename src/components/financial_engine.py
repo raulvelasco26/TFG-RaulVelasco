@@ -747,7 +747,9 @@ class FinancialEngine:
 
         # Calcular cash flow preliminar para determinar déficit
         cf_acum = getattr(self, 'saldo_inicial_tesoreria', 0.0)
-        saldo_poliza_anterior = 0.0
+        # Si el saldo inicial es negativo (CAPEX > capital en mes 0), la póliza
+        # ya está activada antes del mes 1 y el Excel cobra intereses desde el mes 1.
+        saldo_poliza_anterior = abs(cf_acum) if cf_acum < 0 else 0.0
 
         for i in range(self.months):
             # Cobros de clientes (ventas + IVA)

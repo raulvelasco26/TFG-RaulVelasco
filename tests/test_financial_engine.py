@@ -154,8 +154,8 @@ class TestEmpleado:
 
         # SS empresa: 30000 * 0.33 = 9900
         assert costes['ss_empresa'] == 9900
-        # SS trabajador: 30000 * 0.0647 = 1941
-        assert abs(costes['ss_trabajador'] - 1941) < 0.01
+        # SS trabajador: 30000 * 0.065 = 1950
+        assert abs(costes['ss_trabajador'] - 1950) < 0.01
         # Coste empresa: 30000 + 9900 = 39900
         assert costes['coste_empresa'] == 39900
 
@@ -312,7 +312,7 @@ class TestTaxConfig:
         assert config.iva_compras == 0.21
         assert config.iva_ventas == 0.21
         assert config.ss_empresa_rate == 0.33
-        assert config.ss_trabajador_rate == 0.0647
+        assert config.ss_trabajador_rate == 0.065
         assert config.ss_autonomos_rate == 0.15
 
     def test_valores_personalizados(self):
