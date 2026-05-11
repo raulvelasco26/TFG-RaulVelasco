@@ -2,20 +2,36 @@
 Configuración central de la aplicación PEF AI Assistant
 """
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Cargar variables de entorno
-load_dotenv()
+# Cuando se ejecuta desde un bundle de PyInstaller, cargamos el .env únicamente
+# desde la carpeta del ejecutable (nunca subiendo por el árbol de directorios).
+# Así el .env del desarrollador no se filtra al usuario final.
+if hasattr(sys, "_MEIPASS"):
+    _exe_dir = Path(os.path.dirname(sys.executable))
+    load_dotenv(dotenv_path=_exe_dir / ".env")
+    _BUNDLE_MODE = True
+else:
+    load_dotenv()
+    _BUNDLE_MODE = False
+
 
 class Config:
     """Configuración de la aplicación"""
 
     # Rutas del proyecto
     BASE_DIR = Path(__file__).parent.parent
-    SRC_DIR = BASE_DIR / "src"
-    TEMPLATES_DIR = BASE_DIR / "templates"
-    OUTPUT_DIR = BASE_DIR / "output"
+    SRC_DIR  = BASE_DIR / "src"
+
+    # En modo bundle los recursos están en _internal/; las salidas van junto al exe
+    if _BUNDLE_MODE:
+        TEMPLATES_DIR = Path(sys._MEIPASS) / "templates"
+        OUTPUT_DIR    = Path(os.path.dirname(sys.executable)) / "output"
+    else:
+        TEMPLATES_DIR = BASE_DIR / "templates"
+        OUTPUT_DIR    = BASE_DIR / "output"
 
     # Configuración de la API LLM
     MODEL_PROVIDER = os.getenv("MODEL_PROVIDER", "openai")
