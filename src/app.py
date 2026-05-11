@@ -1932,7 +1932,7 @@ Por ejemplo:
         with cols[2]:
             st.markdown("**Años**")
         with cols[3]:
-            st.markdown(f"**IVA ({_iva_inv_pct:.0f}% / 0%)**")
+            st.markdown(f"**IVA ({_iva_inv_pct:.0f}%)**")
         with cols[4]:
             st.markdown("**Total**")
         with cols[5]:
