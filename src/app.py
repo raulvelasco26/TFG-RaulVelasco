@@ -253,6 +253,7 @@ def init_session_state():
         st.session_state.stages_status = {
             "inicio": "current",
             "proyecto": "pending",
+            "fiscalidad": "pending",
             "capex": "pending",
             "financiacion": "pending",
             "opex": "pending",
@@ -273,6 +274,11 @@ STAGES = {
         "icon": "📌",
         "title": "Datos del Proyecto",
         "short": "Proyecto"
+    },
+    "fiscalidad": {
+        "icon": "⚖️",
+        "title": "Fiscalidad",
+        "short": "Fiscalidad"
     },
     "capex": {
         "icon": "💰",
@@ -1674,14 +1680,39 @@ Puedes responderme de forma natural, por ejemplo:
         if fecha != st.session_state.proyecto.get("fecha_inicio", ""):
             st.session_state.proyecto["fecha_inicio"] = fecha
 
-    # Configuración fiscal
+    # Navegación
     st.markdown("---")
-    st.markdown("### ⚙️ Configuración Fiscal")
-    st.caption("Modifica los tipos fiscales si difieren de los valores por defecto para tu país:")
+    col1, col2, col3 = st.columns([1, 2, 1])
+
+    with col1:
+        if st.button("← Anterior", use_container_width=True):
+            change_stage("inicio")
+            st.rerun()
+
+    with col3:
+        if st.button("Siguiente →", use_container_width=True, type="primary"):
+            change_stage("fiscalidad")
+            st.rerun()
+
+
+def render_stage_fiscalidad():
+    """Etapa 2: Configuración fiscal"""
+
+    st.markdown("## ⚖️ Etapa 2: Fiscalidad")
+    st.markdown("---")
+
+    st.markdown("""
+    <div class="info-card">
+    <strong>🎯 Objetivo de esta etapa:</strong><br>
+    Configurar los tipos impositivos y cotizaciones sociales que se aplicarán en todos los cálculos del PEF.
+    Los valores por defecto corresponden a la normativa española vigente. Modifícalos si tu proyecto opera bajo una fiscalidad diferente.
+    </div>
+    """, unsafe_allow_html=True)
 
     fiscal = st.session_state.fiscalidad
 
     # Impuestos principales
+    st.markdown("### 🧾 Impuestos")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         fiscal["is_rate"] = st.number_input(
@@ -1709,7 +1740,7 @@ Puedes responderme de forma natural, por ejemplo:
         )
 
     # Seguridad Social
-    st.markdown("**Seguridad Social**")
+    st.markdown("### 🏛️ Seguridad Social")
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         fiscal["ss_autonomos_rate"] = st.number_input(
@@ -1743,7 +1774,7 @@ Puedes responderme de forma natural, por ejemplo:
         )
 
     # IRPF
-    st.markdown("**Retención IRPF sobre nóminas**")
+    st.markdown("### 💼 Retención IRPF sobre nóminas")
     col1, col2, col3 = st.columns(3)
     with col1:
         fiscal["irpf_bajo"] = st.number_input(
@@ -1767,7 +1798,7 @@ Puedes responderme de forma natural, por ejemplo:
 
     with col1:
         if st.button("← Anterior", use_container_width=True):
-            change_stage("inicio")
+            change_stage("proyecto")
             st.rerun()
 
     with col3:
@@ -1777,9 +1808,9 @@ Puedes responderme de forma natural, por ejemplo:
 
 
 def render_stage_capex():
-    """Etapa 2: Inversiones (CAPEX)"""
+    """Etapa 3: Inversiones (CAPEX)"""
 
-    st.markdown("## 💰 Etapa 2: Inversiones (CAPEX)")
+    st.markdown("## 💰 Etapa 3: Inversiones (CAPEX)")
     st.markdown("---")
 
     st.markdown("""
@@ -2172,7 +2203,7 @@ Por ejemplo:
 
     with col1:
         if st.button("← Anterior", use_container_width=True):
-            change_stage("proyecto")
+            change_stage("fiscalidad")
             st.rerun()
 
     with col3:
@@ -2182,9 +2213,9 @@ Por ejemplo:
 
 
 def render_stage_financiacion():
-    """Etapa 3: Financiación"""
+    """Etapa 4: Financiación"""
 
-    st.markdown("## 🏦 Etapa 3: Financiación")
+    st.markdown("## 🏦 Etapa 4: Financiación")
     st.markdown("---")
 
     st.markdown("""
@@ -2544,9 +2575,9 @@ def render_stage_financiacion():
 
 
 def render_stage_opex():
-    """Etapa 4: Gastos operativos (OPEX)"""
+    """Etapa 5: Gastos operativos (OPEX)"""
 
-    st.markdown("## 📊 Etapa 4: Gastos Operativos (OPEX)")
+    st.markdown("## 📊 Etapa 5: Gastos Operativos (OPEX)")
     st.markdown("---")
 
     st.markdown("""
@@ -2976,9 +3007,9 @@ Puedes decirme cosas como:
 
 
 def render_stage_ingresos():
-    """Etapa 5: Proyección de ingresos"""
+    """Etapa 6: Proyección de ingresos"""
 
-    st.markdown("## 📈 Etapa 5: Proyección de Ingresos")
+    st.markdown("## 📈 Etapa 6: Proyección de Ingresos")
     st.markdown("---")
 
     st.markdown("""
@@ -3383,10 +3414,10 @@ def render_stage_ingresos():
 
 
 def render_stage_analisis():
-    """Etapa 6: Análisis y resultados - Con cálculos reales del FinancialEngine"""
+    """Etapa 7: Análisis y resultados - Con cálculos reales del FinancialEngine"""
     import pandas as pd
 
-    st.markdown("## 📑 Etapa 6: Análisis y Resultados")
+    st.markdown("## 📑 Etapa 7: Análisis y Resultados")
     st.markdown("---")
 
     # Calcular proyecciones
@@ -4474,6 +4505,8 @@ def main():
         render_stage_inicio()
     elif current_stage == "proyecto":
         render_stage_proyecto()
+    elif current_stage == "fiscalidad":
+        render_stage_fiscalidad()
     elif current_stage == "capex":
         render_stage_capex()
     elif current_stage == "financiacion":
