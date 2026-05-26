@@ -1458,7 +1458,10 @@ def _show_config_dialog():
             f"{env_key_name}={api_key}",
             f"MODEL_NAME={model}",
         ]
-        env_path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
+        try:
+            env_path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
+        except OSError:
+            pass  # Entorno cloud: sistema de archivos de solo lectura, se ignora
 
         # Aplicar en memoria sin reiniciar
         os.environ["MODEL_PROVIDER"] = env_provider
