@@ -111,9 +111,15 @@ def init_session_state():
     # Aislamiento de claves de API entre sesiones de usuario
     # (necesario en despliegues cloud donde el proceso es compartido entre usuarios)
     import os
+    from dotenv import load_dotenv
     if "session_initialized" not in st.session_state:
         for key in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "MODEL_PROVIDER", "MODEL_NAME"):
             os.environ.pop(key, None)
+        # En local existe .env con la clave guardada — recargarla para este usuario
+        env_path = Config.BASE_DIR / ".env"
+        if env_path.exists():
+            load_dotenv(env_path, override=True)
+        _get_llm_client.clear()
         st.session_state.session_initialized = True
 
     # Etapa actual de la navegación
