@@ -108,6 +108,14 @@ st.markdown("""
 def init_session_state():
     """Inicializa las variables de estado de la sesión"""
 
+    # Aislamiento de claves de API entre sesiones de usuario
+    # (necesario en despliegues cloud donde el proceso es compartido entre usuarios)
+    import os
+    if "session_initialized" not in st.session_state:
+        for key in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "MODEL_PROVIDER", "MODEL_NAME"):
+            os.environ.pop(key, None)
+        st.session_state.session_initialized = True
+
     # Etapa actual de la navegación
     if "current_stage" not in st.session_state:
         st.session_state.current_stage = "inicio"
