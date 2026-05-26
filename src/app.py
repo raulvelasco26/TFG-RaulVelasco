@@ -4512,24 +4512,25 @@ def main():
     # Renderizar contenido según la etapa actual
     current_stage = st.session_state.current_stage
 
-    if current_stage == "inicio":
-        render_stage_inicio()
-    elif current_stage == "proyecto":
-        render_stage_proyecto()
-    elif current_stage == "fiscalidad":
-        render_stage_fiscalidad()
-    elif current_stage == "capex":
-        render_stage_capex()
-    elif current_stage == "financiacion":
-        render_stage_financiacion()
-    elif current_stage == "opex":
-        render_stage_opex()
-    elif current_stage == "ingresos":
-        render_stage_ingresos()
-    elif current_stage == "analisis":
-        render_stage_analisis()
-    else:
-        render_stage_inicio()
+    with st.container(key=f"stage_content_{current_stage}"):
+        if current_stage == "inicio":
+            render_stage_inicio()
+        elif current_stage == "proyecto":
+            render_stage_proyecto()
+        elif current_stage == "fiscalidad":
+            render_stage_fiscalidad()
+        elif current_stage == "capex":
+            render_stage_capex()
+        elif current_stage == "financiacion":
+            render_stage_financiacion()
+        elif current_stage == "opex":
+            render_stage_opex()
+        elif current_stage == "ingresos":
+            render_stage_ingresos()
+        elif current_stage == "analisis":
+            render_stage_analisis()
+        else:
+            render_stage_inicio()
 
     # Footer
     st.markdown("""
