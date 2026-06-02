@@ -628,8 +628,8 @@ def _build_analisis_system_prompt() -> str:
         lineas.append("=== VALORACIÓN ===")
         tir = ratios.get('tir')
         van = ratios.get('van')
-        lineas.append(f"TIR: {fmt_p(tir) if tir else 'N/A'}")
-        lineas.append(f"VAN (tasa 10%): {fmt_n(van) if van else 'N/A'}")
+        lineas.append(f"TIR: {fmt_p(tir) if tir is not None else 'N/A'}")
+        lineas.append(f"VAN (tasa 10%): {fmt_n(van) if van is not None else 'N/A'}")
 
         mes_pm = ratios_glob.get('mes_punto_equilibrio')
         lineas.append(f"Mes punto muerto: {f'Mes {mes_pm}' if mes_pm else 'No alcanzado en 5 años'}")
@@ -4046,8 +4046,8 @@ def render_stage_analisis():
                 st.markdown("**Por Flujos de Caja (DCF)**")
                 tir = ratios.get('tir')
                 van = ratios.get('van')
-                st.metric("TIR", fmt_pct(tir) if tir else "N/A")
-                st.metric("VAN (10%)", fmt(van) if van else "N/A")
+                st.metric("TIR", fmt_pct(tir) if tir is not None else "N/A")
+                st.metric("VAN (10%)", fmt(van) if van is not None else "N/A")
             with col2:
                 st.markdown("**Por Múltiplos**")
                 resultado_ano5 = suma_ano(cuenta_resultados, 'resultado', 5)

@@ -1181,6 +1181,41 @@ class FinancialEngine:
         ratios['globales']['mes_deficit_maximo'] = mes_max_deficit
         ratios['globales']['necesita_poliza'] = max_deficit < 0
 
+        # TIR y VAN (metodología Excel: CF0 = CF inversiones mes 0, CF1..5 = CF neto anual)
+        inv_inicial = sum(inv.total_con_iva for inv in self.inversiones if inv.mes_adquisicion == 1)
+        cf_dcf = [-inv_inicial]
+        for ano in range(1, self.years + 1):
+            inicio = (ano - 1) * 12
+            fin = min(ano * 12, self.months)
+            cf_dcf.append(sum(self.flujo_tesoreria['cf_neto'][inicio:fin]))
+
+        tasa_dcf = 0.10
+        van = sum(cf / (1 + tasa_dcf) ** t for t, cf in enumerate(cf_dcf))
+        ratios['van'] = van
+
+        tir = None
+        if cf_dcf[0] < 0 and any(cf > 0 for cf in cf_dcf[1:]):
+            def _npv(r):
+                return sum(cf / (1 + r) ** t for t, cf in enumerate(cf_dcf))
+            try:
+                lo, hi = -0.9999, 100.0
+                if _npv(lo) * _npv(hi) < 0:
+                    for _ in range(500):
+                        mid = (lo + hi) / 2.0
+                        npv_mid = _npv(mid)
+                        if abs(npv_mid) < 0.01:
+                            tir = mid
+                            break
+                        if npv_mid > 0:
+                            lo = mid
+                        else:
+                            hi = mid
+                    if tir is None:
+                        tir = (lo + hi) / 2.0
+            except Exception:
+                tir = None
+        ratios['tir'] = tir
+
         self.ratios = ratios
         return self.ratios
 
