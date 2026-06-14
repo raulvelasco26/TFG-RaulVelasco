@@ -41,6 +41,7 @@ def build_engine(ss: dict) -> FinancialEngine:
 
     iva_inv = fiscal.get("iva_inversiones", 21.0) / 100
     capex_iva_cero = {"terrenos", "fianzas"}
+    capex_no_amortizable = {"fianzas"}  # Fianzas: depósito a valor completo, sin amortización
 
     capex_mapping = {
         "investigacion": "Investigación y desarrollo",
@@ -66,7 +67,7 @@ def build_engine(ss: dict) -> FinancialEngine:
             inversiones.append({
                 "concepto": nombre,
                 "importe": importe,
-                "vida_util_anos": data.get("anos", 5),
+                "vida_util_anos": 0 if key in capex_no_amortizable else data.get("anos", 5),
                 "mes_adquisicion": 1,
                 "subvencion": data.get("subvencion", 0),
                 "iva_rate": 0.0 if key in capex_iva_cero else iva_inv,
